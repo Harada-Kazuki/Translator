@@ -83,12 +83,32 @@ wss.on('connection', (ws) => {
   let currentRoomId = null;
   let currentClientId = null;
 
+  // ── Ping/Pong でゾンビ接続を検出 ──────────────────────
+  // クライアントが25秒ごとにpingを送ってくる。
+  // サーバー側は60秒以内にメッセージが来なければ強制切断する。
+  let lastSeen = Date.now();
+  const aliveCheck = setInterval(() => {
+    if (Date.now() - lastSeen > 60000) {
+      console.log(`[timeout] client=${currentClientId} — no message for 60s, terminating`);
+      clearInterval(aliveCheck);
+      ws.terminate();
+    }
+  }, 30000);
+
   ws.on('message', (raw) => {
+    lastSeen = Date.now(); // メッセージが来るたびに更新
+
     let msg;
     try { msg = JSON.parse(raw.toString()); }
     catch { return; }
 
     if (!msg || typeof msg.type !== 'string') return;
+
+    // ping には pong を返すだけ
+    if (msg.type === 'ping') {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'pong' }));
+      return;
+    }
 
     switch (msg.type) {
 
@@ -151,11 +171,13 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    clearInterval(aliveCheck);
     if (currentRoomId && currentClientId) leaveRoom(currentRoomId, currentClientId);
   });
 
   ws.on('error', (err) => {
     console.error(`[ws error] ${err.message}`);
+    clearInterval(aliveCheck);
     try { ws.terminate(); } catch {}
   });
 });

@@ -259,12 +259,12 @@ input:focus, select:focus { border-color: var(--accent); }
   <div class="screen active" id="screen-setup">
     <div class="setup-wrap">
       <h1>会議に参加する</h1>
-      <p>名前と言語を選んでスタート。<br>QRコードをスキャンすると即参加できます。</p>
+      <p>名前と言語を選んでスタート。<br>QRコードをスキャンして参加できます。</p>
 
       <div class="field-row">
         <div class="field">
           <label>あなたの名前</label>
-          <input type="text" id="input-name" placeholder="田中 一郎" maxlength="20" autocomplete="nickname">
+          <input type="text" id="input-name" placeholder="例：原田 一希" maxlength="20" autocomplete="nickname">
         </div>
         <div class="field">
           <label>話す言語</label>
@@ -318,7 +318,7 @@ input:focus, select:focus { border-color: var(--accent); }
   <!-- ── ROOM ── -->
   <div class="screen" id="screen-room">
     <div class="wake-banner hidden" id="wake-banner">
-      ⏳ サーバーを起動中です。初回接続に数秒かかる場合があります...
+      サーバーを起動中です。初回接続に数秒かかる場合があります...
     </div>
 
     <div class="room-header">
@@ -348,7 +348,7 @@ input:focus, select:focus { border-color: var(--accent); }
         </div>
         <div class="mic-section">
           <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
-            <span id="mic-icon">🎤</span>
+            <span id="mic-icon">🎙</span>
             <span id="mic-label">マイクをオンにする</span>
           </button>
           <div class="vol-bar"><div class="vol-fill" id="vol"></div></div>

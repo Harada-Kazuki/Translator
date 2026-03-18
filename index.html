@@ -483,6 +483,7 @@ function setConnUI(state) {
     label.textContent = '接続中';
     badge.className = 'conn-badge connected';
     badge.textContent = '● 接続済み';
+    clearTimeout(wakeBannerTimer); // タイマーをキャンセルしてバナーが出ないようにする
     document.getElementById('wake-banner').classList.add('hidden');
   } else if (state === 'connecting') {
     dot.className = 'dot warn';
@@ -570,16 +571,16 @@ function enterRoom() {
 //  WebSocket
 // ════════════════════════════════════════════════════════
 const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000]; // 指数バックオフ
+let wakeBannerTimer = null;
 
 function connectWS() {
-  // Renderのコールドスタートに備えてバナーを表示
-  if (S.reconnectCount === 0) {
-    setTimeout(() => {
-      if (!S.wsReady) {
-        document.getElementById('wake-banner').classList.remove('hidden');
-      }
-    }, 3000);
-  }
+  // 3秒後もまだ未接続ならバナー表示。接続成功時はキャンセルする
+  clearTimeout(wakeBannerTimer);
+  wakeBannerTimer = setTimeout(() => {
+    if (!S.wsReady) {
+      document.getElementById('wake-banner').classList.remove('hidden');
+    }
+  }, 3000);
 
   try {
     S.ws = new WebSocket(WS_URL);

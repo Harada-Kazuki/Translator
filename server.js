@@ -1,24 +1,28 @@
 /**
- * BABEL WebSocket Server
- * Render の無料プランで動作する軽量シグナリングサーバー
+ * BABEL WebSocket + 静的ファイルサーバー
  *
- * 役割:
- *   - ルーム管理 (join / leave / presence)
- *   - speech メッセージのルーム内ブロードキャスト
- *   - 翻訳は各クライアントが行う（サーバーは中継のみ）
+ * リポジトリ構成（全部 main ルートに置く）:
+ *   ├── server.js       ← このファイル
+ *   ├── package.json
+ *   └── index.html      ← クライアント（同じサーバーから配信）
  *
- * Render 無料プランの制約:
- *   - 15分アイドルでスリープ → 最初の接続に数秒かかる場合あり
- *   - メモリ 512MB / CPU 共有
+ * Render の設定:
+ *   Build Command : npm install
+ *   Start Command : node server.js
+ *   Plan          : Free
  */
 
 const { WebSocketServer, WebSocket } = require('ws');
 const http = require('http');
+const fs   = require('fs');
+const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 
-// ── HTTP サーバー (Render のヘルスチェック用) ──────────────────
+// ── HTTP: index.html を配信 + ヘルスチェック ──────────────────
 const httpServer = http.createServer((req, res) => {
+
+  // ヘルスチェック
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -29,16 +33,24 @@ const httpServer = http.createServer((req, res) => {
     }));
     return;
   }
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('BABEL WS Server running');
+
+  // それ以外は全部 index.html を返す（SPA的な扱い）
+  const filePath = path.join(__dirname, 'index.html');
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('index.html not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(data);
+  });
 });
 
 // ── WebSocket サーバー ─────────────────────────────────────────
 const wss = new WebSocketServer({ server: httpServer });
 
-/**
- * rooms: Map<roomId, Map<clientId, { ws, name, lang }>>
- */
+// rooms: Map<roomId, Map<clientId, { ws, name, lang }>>
 const rooms = new Map();
 
 function totalConnections() {
@@ -57,9 +69,6 @@ function cleanRoom(roomId) {
   if (room && room.size === 0) rooms.delete(roomId);
 }
 
-/**
- * ルーム内の全員（または送信者を除く全員）にメッセージを送る
- */
 function broadcast(room, data, excludeId = null) {
   const json = JSON.stringify(data);
   for (const [id, client] of room) {
@@ -76,48 +85,36 @@ wss.on('connection', (ws) => {
 
   ws.on('message', (raw) => {
     let msg;
-    try {
-      msg = JSON.parse(raw.toString());
-    } catch {
-      return; // 不正なJSONは無視
-    }
+    try { msg = JSON.parse(raw.toString()); }
+    catch { return; }
 
-    // 最低限のバリデーション
     if (!msg || typeof msg.type !== 'string') return;
 
     switch (msg.type) {
 
       case 'join': {
-        // サニタイズ
-        const roomId = String(msg.roomId || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
+        const roomId   = String(msg.roomId   || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
         const clientId = String(msg.clientId || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
-        const name = String(msg.name || '匿名').slice(0, 20);
-        const lang = String(msg.lang || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
+        const name     = String(msg.name     || '匿名').slice(0, 20);
+        const lang     = String(msg.lang     || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
 
         if (!roomId || !clientId) return;
 
-        // 既存ルームからの退室処理（タブリロード等）
-        if (currentRoomId && currentClientId) {
-          leaveRoom(currentRoomId, currentClientId);
-        }
+        if (currentRoomId && currentClientId) leaveRoom(currentRoomId, currentClientId);
 
-        currentRoomId = roomId;
+        currentRoomId  = roomId;
         currentClientId = clientId;
 
         const room = getOrCreateRoom(roomId);
         room.set(clientId, { ws, name, lang });
 
-        // 入室者に現在の参加者リストを送信
         const participants = [...room.entries()]
           .filter(([id]) => id !== clientId)
           .map(([id, c]) => ({ id, name: c.name, lang: c.lang }));
 
         ws.send(JSON.stringify({ type: 'room_state', participants }));
-
-        // 他の参加者に join を通知
         broadcast(room, { type: 'join', clientId, name, lang }, clientId);
-
-        console.log(`[join] room=${roomId} id=${clientId} name=${name} lang=${lang} members=${room.size}`);
+        console.log(`[join]  room=${roomId} client=${clientId} name=${name} members=${room.size}`);
         break;
       }
 
@@ -125,11 +122,8 @@ wss.on('connection', (ws) => {
         if (!currentRoomId) return;
         const room = rooms.get(currentRoomId);
         if (!room) return;
-
-        // テキストの長さ制限
         const text = String(msg.text || '').slice(0, 500);
         if (!text) return;
-
         broadcast(room, {
           type: 'speech',
           clientId: currentClientId,
@@ -152,16 +146,12 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      default:
-        // 未知のメッセージタイプは無視
-        break;
+      default: break;
     }
   });
 
   ws.on('close', () => {
-    if (currentRoomId && currentClientId) {
-      leaveRoom(currentRoomId, currentClientId);
-    }
+    if (currentRoomId && currentClientId) leaveRoom(currentRoomId, currentClientId);
   });
 
   ws.on('error', (err) => {
@@ -173,12 +163,9 @@ wss.on('connection', (ws) => {
 function leaveRoom(roomId, clientId) {
   const room = rooms.get(roomId);
   if (!room) return;
-  const client = room.get(clientId);
-  if (!client) return;
-
+  if (!room.has(clientId)) return;
   room.delete(clientId);
-  console.log(`[leave] room=${roomId} id=${clientId} remaining=${room.size}`);
-
+  console.log(`[leave] room=${roomId} client=${clientId} remaining=${room.size}`);
   broadcast(room, { type: 'leave', clientId });
   cleanRoom(roomId);
 }

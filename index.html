@@ -6,6 +6,7 @@
 <title>BABEL — 同時翻訳</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 /* ─── Reset & Base ─────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -561,7 +562,7 @@ function enterRoom() {
 
   // QR生成
   const url = location.href.split('?')[0] + '?room=' + S.roomId;
-  renderQR('qr-side-wrap', url, 4);
+  renderQR('qr-side-wrap', url, 160);
 
   setConnUI('connecting');
   connectWS();
@@ -570,11 +571,26 @@ function enterRoom() {
 // ════════════════════════════════════════════════════════
 //  WebSocket
 // ════════════════════════════════════════════════════════
-const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000]; // 指数バックオフ
+const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000];
 let wakeBannerTimer = null;
+let pingTimer = null;
+
+function startPing() {
+  stopPing();
+  // 25秒ごとにpingを送る（Renderの30〜60秒タイムアウトより短く）
+  pingTimer = setInterval(() => {
+    if (S.ws && S.ws.readyState === WebSocket.OPEN) {
+      S.ws.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, 25000);
+}
+
+function stopPing() {
+  clearInterval(pingTimer);
+  pingTimer = null;
+}
 
 function connectWS() {
-  // 3秒後もまだ未接続ならバナー表示。接続成功時はキャンセルする
   clearTimeout(wakeBannerTimer);
   wakeBannerTimer = setTimeout(() => {
     if (!S.wsReady) {
@@ -593,7 +609,7 @@ function connectWS() {
     S.wsReady = true;
     S.reconnectCount = 0;
     setConnUI('connected');
-    // サーバーに入室を通知
+    startPing();
     wsSend({
       type: 'join',
       roomId: S.roomId,
@@ -605,7 +621,9 @@ function connectWS() {
 
   S.ws.onmessage = ({ data }) => {
     try {
-      onServerMsg(JSON.parse(data));
+      const msg = JSON.parse(data);
+      if (msg.type === 'pong') return; // pong は無視するだけ
+      onServerMsg(msg);
     } catch (e) {
       console.error('WS parse error:', e);
     }
@@ -613,17 +631,17 @@ function connectWS() {
 
   S.ws.onclose = () => {
     S.wsReady = false;
+    stopPing();
     if (!S.roomId) return; // 意図的な退室
     setConnUI('connecting');
-    // 自動再接続（指数バックオフ）
     const delay = WS_RECONNECT_DELAYS[Math.min(S.reconnectCount, WS_RECONNECT_DELAYS.length - 1)];
     S.reconnectCount++;
-    toast(`切断されました。${delay/1000}秒後に再接続...`, 'warn');
+    toast(`切断されました。${delay / 1000}秒後に再接続...`, 'warn');
     S.reconnectTimer = setTimeout(connectWS, delay);
   };
 
   S.ws.onerror = () => {
-    // onclose が続いて呼ばれるので ここでは何もしない
+    // onclose が続いて呼ばれるので何もしない
   };
 }
 
@@ -731,30 +749,27 @@ function renderParticipants() {
 // ════════════════════════════════════════════════════════
 //  QR
 // ════════════════════════════════════════════════════════
-function renderQR(wrapId, text, cellSize) {
+function renderQR(wrapId, text, sizePx) {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
   wrap.innerHTML = '';
-  try {
-    const qr = qrcode(0, 'M'); // M=中エラー訂正（Lより安定）
-    qr.addData(text);
-    qr.make();
-    // createSvgTag はブラウザ版CDNで確実に存在するメソッド
-    const svgStr = qr.createSvgTag(cellSize, 4); // cellSize, margin
-    wrap.innerHTML = svgStr; // SVGタグのみ、スクリプト含まないので安全
-    const svg = wrap.querySelector('svg');
-    if (svg) {
-      svg.style.cssText = 'display:block;margin:0 auto;border-radius:4px';
-    }
-  } catch (e) {
-    console.error('QR error:', e);
-    wrap.textContent = 'QR生成エラー';
-  }
+  // qrcodejs: new QRCode(element, { text, width, height, colorDark, colorLight })
+  new QRCode(wrap, {
+    text,
+    width: sizePx,
+    height: sizePx,
+    colorDark: '#1a1a1a',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+  // 生成されたcanvas/imgを中央揃えに
+  const child = wrap.firstChild;
+  if (child) child.style.cssText = 'display:block;margin:0 auto;border-radius:4px';
 }
 
 function showQR() {
   const url = location.href.split('?')[0] + '?room=' + S.roomId;
-  renderQR('qr-modal-wrap', url, 6);
+  renderQR('qr-modal-wrap', url, 200);
   document.getElementById('qr-room-display').textContent = S.roomId;
   document.getElementById('qr-modal').classList.add('open');
 }
@@ -1013,11 +1028,13 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
 // ════════════════════════════════════════════════════════
 async function leaveRoom() {
   stopRec();
+  stopPing();
   wsSend({ type: 'leave', clientId: S.myId });
   await new Promise(r => setTimeout(r, 100));
   S.roomId = null; // onclose の自動再接続を抑止
   if (S.ws) { S.ws.onclose = null; S.ws.close(); S.ws = null; }
   clearTimeout(S.reconnectTimer);
+  clearTimeout(wakeBannerTimer);
   setConnUI('disconnected');
   show('screen-setup');
 }

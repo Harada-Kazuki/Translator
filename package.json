@@ -1,0 +1,16 @@
+{
+  "name": "babel-ws-server",
+  "version": "1.0.0",
+  "description": "BABEL リアルタイム翻訳 WebSocketサーバー",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

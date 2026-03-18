@@ -399,7 +399,7 @@ input:focus, select:focus { border-color: var(--accent); }
 // ════════════════════════════════════════════════════════
 // Render にデプロイしたサーバーの WebSocket URL
 // 例: 'wss://babel-ws.onrender.com'
-const WS_URL = 'wss://translator-5t9v.onrender.com';
+const WS_URL = 'wss://babel-ws.onrender.com';
 
 // ════════════════════════════════════════════════════════
 //  State
@@ -735,15 +735,18 @@ function renderQR(wrapId, text, cellSize) {
   if (!wrap) return;
   wrap.innerHTML = '';
   try {
-    const qr = qrcode(0, 'L');
+    const qr = qrcode(0, 'M'); // M=中エラー訂正（Lより安定）
     qr.addData(text);
     qr.make();
-    const img = document.createElement('img');
-    img.src = qr.createDataURL(cellSize);
-    img.alt = 'QRコード';
-    img.style.borderRadius = '4px';
-    wrap.appendChild(img);
+    // createSvgTag はブラウザ版CDNで確実に存在するメソッド
+    const svgStr = qr.createSvgTag(cellSize, 4); // cellSize, margin
+    wrap.innerHTML = svgStr; // SVGタグのみ、スクリプト含まないので安全
+    const svg = wrap.querySelector('svg');
+    if (svg) {
+      svg.style.cssText = 'display:block;margin:0 auto;border-radius:4px';
+    }
   } catch (e) {
+    console.error('QR error:', e);
     wrap.textContent = 'QR生成エラー';
   }
 }

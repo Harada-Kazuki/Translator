@@ -411,8 +411,11 @@ function fallbackLocal() {
 function broadcast(data) {
   if(S.useSupabase&&S.sbCh) {
     S.sbCh.send({type:'broadcast',event:'msg',payload:data});
+  } else if(S.localCh) {
+    // BroadcastChannel does NOT deliver to the same tab that sent it,
+    // so this is safe — but add from field for onMsg filter anyway
+    S.localCh.postMessage(data);
   }
-  if(S.localCh) S.localCh.postMessage(data);
 }
 
 // ── MESSAGES ─────────────────────────────────────────
@@ -462,8 +465,18 @@ function copyLink(){
 }
 
 // ── MIC ──────────────────────────────────────────────
+let ttsPrimed = false;
+function primeTTS() {
+  if (ttsPrimed) return;
+  ttsPrimed = true;
+  // Silent utterance to unlock Chrome's autoplay policy for speechSynthesis
+  const u = new SpeechSynthesisUtterance('');
+  u.volume = 0;
+  speechSynthesis.speak(u);
+}
 function toggleMic(){S.recording?stopRec():startRec();}
 function startRec() {
+  primeTTS(); // unlock speechSynthesis autoplay on first user gesture
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('このブラウザは音声認識非対応（Chrome推奨）');return;}
   const r=new SR(); r.lang=S.speakLang; r.continuous=true; r.interimResults=true;
@@ -505,15 +518,27 @@ function animVol(){
 }
 
 // ── SPEECH ───────────────────────────────────────────
+let lastSentText = '';
+let lastSentTime = 0;
 async function sendSpeech(text) {
+  // Dedup: ignore if same text within 1s (recognition sometimes fires twice)
+  const now = Date.now();
+  if (text === lastSentText && now - lastSentTime < 1000) return;
+  lastSentText = text; lastSentTime = now;
+
   addMsg({from:S.myId,name:S.myName,lang:lc(S.speakLang),original:text,translated:text,isMe:true});
   broadcast({type:'speech',from:S.myId,name:S.myName,lang:lc(S.speakLang),text});
 }
 async function handleSpeech(d) {
-  let translated=d.text;
-  if(d.lang!==S.receiveLang) translated=await translate(d.text,d.lang,S.receiveLang);
+  let translated = d.text;
+  if (d.lang !== S.receiveLang) {
+    translated = await translate(d.text, d.lang, S.receiveLang);
+  }
   addMsg({from:d.from,name:d.name,lang:d.lang,original:d.text,translated,isMe:false});
-  if(document.getElementById('tts-room').classList.contains('on')&&translated) speak(translated,S.receiveLang);
+  const ttsOn = document.getElementById('tts-room').classList.contains('on');
+  if (ttsOn && translated && translated.trim()) {
+    speak(translated, S.receiveLang);
+  }
 }
 async function translate(text,from,to) {
   try {
@@ -521,9 +546,26 @@ async function translate(text,from,to) {
     return (await res.json()).responseData?.translatedText||text;
   } catch{return text;}
 }
-function speak(text,lang) {
-  const u=new SpeechSynthesisUtterance(text); u.lang=lang; u.rate=1.05;
-  speechSynthesis.cancel(); speechSynthesis.speak(u);
+function speak(text, lang) {
+  // Chrome blocks speechSynthesis if called too soon or during mic input.
+  // Pause briefly, then speak. Also stop any ongoing recognition audio conflict.
+  speechSynthesis.cancel();
+  setTimeout(() => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = 1.0;
+    u.volume = 1.0;
+    // Workaround: Chrome sometimes cuts off long utterances — keep it alive
+    u.onboundary = null;
+    speechSynthesis.speak(u);
+    // Chrome bug: speechSynthesis pauses itself after ~15s in some versions
+    const keepAlive = setInterval(() => {
+      if (!speechSynthesis.speaking) { clearInterval(keepAlive); return; }
+      speechSynthesis.pause();
+      speechSynthesis.resume();
+    }, 10000);
+    u.onend = () => clearInterval(keepAlive);
+  }, 300);
 }
 
 // ── TRANSCRIPT ───────────────────────────────────────

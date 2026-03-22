@@ -1,15 +1,10 @@
 /**
- * BABEL WebSocket + 静的ファイルサーバー
+ * BABEL WebSocket + 静的ファイルサーバー (修正版)
  *
- * リポジトリ構成（全部 main ルートに置く）:
- *   ├── server.js       ← このファイル
- *   ├── package.json
- *   └── index.html      ← クライアント（同じサーバーから配信）
- *
- * Render の設定:
- *   Build Command : npm install
- *   Start Command : node server.js
- *   Plan          : Free
+ * 修正内容:
+ *   1. 巨大メッセージを即 terminate (DoS対策)
+ *   2. case 'leave' を追加 (明示的退出に対応)
+ *   3. setConnUI への wakeBannerTimer 依存を除去 (関心分離)
  */
 
 const { WebSocketServer, WebSocket } = require('ws');
@@ -19,10 +14,10 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 
-// ── HTTP: index.html を配信 + ヘルスチェック ──────────────────
-const httpServer = http.createServer((req, res) => {
+// メッセージサイズ上限 (8KiB) — 超過は即切断
+const MAX_MSG_BYTES = 8192;
 
-  // ヘルスチェック
+const httpServer = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -34,7 +29,6 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
-  // それ以外は全部 index.html を返す（SPA的な扱い）
   const filePath = path.join(__dirname, 'index.html');
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -47,7 +41,6 @@ const httpServer = http.createServer((req, res) => {
   });
 });
 
-// ── WebSocket サーバー ─────────────────────────────────────────
 const wss = new WebSocketServer({ server: httpServer });
 
 // rooms: Map<roomId, Map<clientId, { ws, name, lang }>>
@@ -80,12 +73,9 @@ function broadcast(room, data, excludeId = null) {
 }
 
 wss.on('connection', (ws) => {
-  let currentRoomId = null;
+  let currentRoomId  = null;
   let currentClientId = null;
 
-  // ── Ping/Pong でゾンビ接続を検出 ──────────────────────
-  // クライアントが25秒ごとにpingを送ってくる。
-  // サーバー側は60秒以内にメッセージが来なければ強制切断する。
   let lastSeen = Date.now();
   const aliveCheck = setInterval(() => {
     if (Date.now() - lastSeen > 60000) {
@@ -96,7 +86,15 @@ wss.on('connection', (ws) => {
   }, 30000);
 
   ws.on('message', (raw) => {
-    lastSeen = Date.now(); // メッセージが来るたびに更新
+    // ── [修正1] 巨大メッセージ対策 ──
+    if (raw.length > MAX_MSG_BYTES) {
+      console.warn(`[oversized] client=${currentClientId} sent ${raw.length} bytes — terminating`);
+      clearInterval(aliveCheck);
+      ws.terminate();
+      return;
+    }
+
+    lastSeen = Date.now();
 
     let msg;
     try { msg = JSON.parse(raw.toString()); }
@@ -104,7 +102,6 @@ wss.on('connection', (ws) => {
 
     if (!msg || typeof msg.type !== 'string') return;
 
-    // ping には pong を返すだけ
     if (msg.type === 'ping') {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'pong' }));
       return;
@@ -113,16 +110,16 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
 
       case 'join': {
-        const roomId   = String(msg.roomId   || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
-        const clientId = String(msg.clientId || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
-        const name     = String(msg.name     || '匿名').slice(0, 20);
-        const lang     = String(msg.lang     || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
+        const roomId    = String(msg.roomId   || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
+        const clientId  = String(msg.clientId || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
+        const name      = String(msg.name     || '匿名').slice(0, 20);
+        const lang      = String(msg.lang     || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
 
         if (!roomId || !clientId) return;
 
         if (currentRoomId && currentClientId) leaveRoom(currentRoomId, currentClientId);
 
-        currentRoomId  = roomId;
+        currentRoomId   = roomId;
         currentClientId = clientId;
 
         const room = getOrCreateRoom(roomId);
@@ -138,6 +135,16 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      // ── [修正2] 明示的な退出に対応 ──
+      case 'leave': {
+        if (currentRoomId && currentClientId) {
+          leaveRoom(currentRoomId, currentClientId);
+          currentRoomId   = null;
+          currentClientId = null;
+        }
+        break;
+      }
+
       case 'speech': {
         if (!currentRoomId) return;
         const room = rooms.get(currentRoomId);
@@ -148,7 +155,7 @@ wss.on('connection', (ws) => {
           type: 'speech',
           clientId: currentClientId,
           name: room.get(currentClientId)?.name || '?',
-          lang: room.get(currentClientId)?.lang || 'ja',
+          lang: room.get(currentClientId)?.lang  || 'ja',
           text,
         }, currentClientId);
         break;
@@ -184,15 +191,13 @@ wss.on('connection', (ws) => {
 
 function leaveRoom(roomId, clientId) {
   const room = rooms.get(roomId);
-  if (!room) return;
-  if (!room.has(clientId)) return;
+  if (!room || !room.has(clientId)) return;
   room.delete(clientId);
   console.log(`[leave] room=${roomId} client=${clientId} remaining=${room.size}`);
   broadcast(room, { type: 'leave', clientId });
   cleanRoom(roomId);
 }
 
-// ── 起動 ──────────────────────────────────────────────────────
 httpServer.listen(PORT, () => {
   console.log(`BABEL server listening on port ${PORT}`);
 });

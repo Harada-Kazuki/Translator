@@ -212,7 +212,7 @@ input:focus, select:focus { border-color: var(--accent); }
 .qr-wrap img { display: block; margin: 0 auto; image-rendering: pixelated; border-radius: 4px; }
 .qr-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
-/* ─── Wake Banner (Renderスリープ警告) ─────────────────── */
+/* ─── Wake Banner ─────────────────────────────────────── */
 .wake-banner {
   background: #fefce8; border: 1px solid #fde68a; border-radius: 8px;
   padding: 10px 14px; font-size: 12px; color: var(--yellow);
@@ -335,7 +335,6 @@ input:focus, select:focus { border-color: var(--accent); }
     </div>
 
     <div class="room-layout">
-      <!-- 左: トランスクリプト + マイク -->
       <div>
         <div class="transcript-card">
           <div class="transcript-head">
@@ -362,7 +361,6 @@ input:focus, select:focus { border-color: var(--accent); }
         </div>
       </div>
 
-      <!-- 右: 参加者 + QR -->
       <div class="sidebar">
         <div class="panel">
           <div class="panel-title">参加者</div>
@@ -396,10 +394,8 @@ input:focus, select:focus { border-color: var(--accent); }
 
 <script>
 // ════════════════════════════════════════════════════════
-//  設定 — デプロイ後にここのURLだけ変える
+//  設定
 // ════════════════════════════════════════════════════════
-// Render にデプロイしたサーバーの WebSocket URL
-// 例: '://babel-ws.onrender.com'
 const WS_URL = 'wss://translator-5t9v.onrender.com';
 
 // ════════════════════════════════════════════════════════
@@ -418,8 +414,8 @@ const S = {
   wsReady: false,
   reconnectTimer: null,
   reconnectCount: 0,
-  participants: {},       // id → { name, lang, speaking }
-  participantOrder: [],   // 挿入順で色を固定
+  participants: {},
+  participantOrder: [],
   msgCount: 0,
   lastSentText: '',
   lastSentTime: 0,
@@ -436,7 +432,6 @@ const uid = () => Math.random().toString(36).slice(2, 12);
 //  Init
 // ════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
-  // URLパラメータからルームID自動入力
   const p = new URLSearchParams(location.search).get('room');
   if (p) {
     const safe = p.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
@@ -474,9 +469,10 @@ function show(id) {
   document.getElementById(id).classList.add('active');
 }
 
+// ── [修正3] setConnUI から wakeBannerTimer 依存を除去 ──
+// バナー制御は connectWS / onopen のみが責任を持つ
 function setConnUI(state) {
-  // state: 'disconnected' | 'connecting' | 'connected'
-  const dot = document.getElementById('conn-dot');
+  const dot   = document.getElementById('conn-dot');
   const label = document.getElementById('conn-label');
   const badge = document.getElementById('conn-badge');
   if (state === 'connected') {
@@ -484,8 +480,6 @@ function setConnUI(state) {
     label.textContent = '接続中';
     badge.className = 'conn-badge connected';
     badge.textContent = '● 接続済み';
-    clearTimeout(wakeBannerTimer); // タイマーをキャンセルしてバナーが出ないようにする
-    document.getElementById('wake-banner').classList.add('hidden');
   } else if (state === 'connecting') {
     dot.className = 'dot warn';
     label.textContent = '接続中...';
@@ -555,12 +549,10 @@ function enterRoom() {
   document.getElementById('msg-count').textContent = '0 件';
   document.getElementById('plist').innerHTML = '';
 
-  // 自分を参加者に追加
   S.participants[S.myId] = { name: S.myName, lang: lcLang(S.speakLang), speaking: false, isMe: true };
   S.participantOrder.push(S.myId);
   renderParticipants();
 
-  // QR生成
   const url = location.href.split('?')[0] + '?room=' + S.roomId;
   renderQR('qr-side-wrap', url, 160);
 
@@ -577,7 +569,6 @@ let pingTimer = null;
 
 function startPing() {
   stopPing();
-  // 25秒ごとにpingを送る（Renderの30〜60秒タイムアウトより短く）
   pingTimer = setInterval(() => {
     if (S.ws && S.ws.readyState === WebSocket.OPEN) {
       S.ws.send(JSON.stringify({ type: 'ping' }));
@@ -592,6 +583,7 @@ function stopPing() {
 
 function connectWS() {
   clearTimeout(wakeBannerTimer);
+  // 3秒後もまだ未接続ならバナーを表示
   wakeBannerTimer = setTimeout(() => {
     if (!S.wsReady) {
       document.getElementById('wake-banner').classList.remove('hidden');
@@ -608,6 +600,9 @@ function connectWS() {
   S.ws.onopen = () => {
     S.wsReady = true;
     S.reconnectCount = 0;
+    // ── [修正3] バナー制御を onopen に集約 ──
+    clearTimeout(wakeBannerTimer);
+    document.getElementById('wake-banner').classList.add('hidden');
     setConnUI('connected');
     startPing();
     wsSend({
@@ -622,7 +617,7 @@ function connectWS() {
   S.ws.onmessage = ({ data }) => {
     try {
       const msg = JSON.parse(data);
-      if (msg.type === 'pong') return; // pong は無視するだけ
+      if (msg.type === 'pong') return;
       onServerMsg(msg);
     } catch (e) {
       console.error('WS parse error:', e);
@@ -632,7 +627,7 @@ function connectWS() {
   S.ws.onclose = () => {
     S.wsReady = false;
     stopPing();
-    if (!S.roomId) return; // 意図的な退室
+    if (!S.roomId) return;
     setConnUI('connecting');
     const delay = WS_RECONNECT_DELAYS[Math.min(S.reconnectCount, WS_RECONNECT_DELAYS.length - 1)];
     S.reconnectCount++;
@@ -640,9 +635,7 @@ function connectWS() {
     S.reconnectTimer = setTimeout(connectWS, delay);
   };
 
-  S.ws.onerror = () => {
-    // onclose が続いて呼ばれるので何もしない
-  };
+  S.ws.onerror = () => {};
 }
 
 function wsSend(data) {
@@ -660,7 +653,6 @@ function onServerMsg(d) {
   switch (d.type) {
 
     case 'room_state': {
-      // 入室時に既存参加者リストを受信
       (d.participants || []).forEach(p => {
         if (!S.participants[p.id]) {
           S.participants[p.id] = { name: p.name, lang: p.lang, speaking: false };
@@ -753,7 +745,6 @@ function renderQR(wrapId, text, sizePx) {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
   wrap.innerHTML = '';
-  // qrcodejs: new QRCode(element, { text, width, height, colorDark, colorLight })
   new QRCode(wrap, {
     text,
     width: sizePx,
@@ -762,7 +753,6 @@ function renderQR(wrapId, text, sizePx) {
     colorLight: '#ffffff',
     correctLevel: QRCode.CorrectLevel.M,
   });
-  // 生成されたcanvas/imgを中央揃えに
   const child = wrap.firstChild;
   if (child) child.style.cssText = 'display:block;margin:0 auto;border-radius:4px';
 }
@@ -843,8 +833,9 @@ function startRec() {
     stopRec();
   };
 
+  // ── [修正4] S.rec === r のチェックを追加してゾンビ再起動を防止 ──
   r.onend = () => {
-    if (!stopped && S.recording) {
+    if (!stopped && S.recording && S.rec === r) {
       try { r.start(); } catch { stopRec(); }
     }
   };
@@ -862,9 +853,9 @@ function stopRec() {
     S.rec = null;
   }
   document.getElementById('mic-btn')?.classList.remove('recording');
-  const iconEl = document.getElementById('mic-icon');
+  const iconEl  = document.getElementById('mic-icon');
   const labelEl = document.getElementById('mic-label');
-  if (iconEl) iconEl.textContent = '🎤';
+  if (iconEl)  iconEl.textContent  = '🎤';
   if (labelEl) labelEl.textContent = 'マイクをオンにする';
   const interimEl = document.getElementById('interim');
   if (interimEl) interimEl.textContent = '';
@@ -894,10 +885,7 @@ function sendSpeech(text) {
   S.lastSentText = text;
   S.lastSentTime = now;
 
-  // 自分の発言をそのままログに表示
   addMsg({ id: S.myId, name: S.myName, lang: lcLang(S.speakLang), original: text, translated: text, isMe: true });
-
-  // サーバーへ送信（他の参加者にブロードキャストされる）
   wsSend({ type: 'speech', text });
 }
 
@@ -906,7 +894,7 @@ function sendSpeech(text) {
 // ════════════════════════════════════════════════════════
 async function handleSpeech(d) {
   if (!d.text || typeof d.text !== 'string') return;
-  const text = d.text.slice(0, 500);
+  const text    = d.text.slice(0, 500);
   const srcLang = lcLang(d.lang);
 
   let translated = text;
@@ -922,14 +910,19 @@ async function handleSpeech(d) {
 }
 
 // ════════════════════════════════════════════════════════
-//  Translation (MyMemory free API)
+//  Translation (MyMemory)
 // ════════════════════════════════════════════════════════
+// ── [修正5] AbortSignal.timeout → AbortController+setTimeout
+//    (iOS 16以下の Safari 対応)
 async function translate(text, from, to) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
   try {
     const res = await fetch(
       `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`,
-      { signal: AbortSignal.timeout(5000) }
+      { signal: ctrl.signal }
     );
+    clearTimeout(timer);
     if (!res.ok) return text;
     const json = await res.json();
     const t = json?.responseData?.translatedText;
@@ -941,6 +934,7 @@ async function translate(text, from, to) {
     }
     return t;
   } catch {
+    clearTimeout(timer);
     return text;
   }
 }
@@ -952,17 +946,16 @@ function speak(text, lang) {
   speechSynthesis.cancel();
   setTimeout(() => {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang;
-    u.rate = 1.0;
+    u.lang   = lang;
+    u.rate   = 1.0;
     u.volume = 1.0;
     speechSynthesis.speak(u);
-    // Chrome 15秒バグ回避
     const keepAlive = setInterval(() => {
       if (!speechSynthesis.speaking) { clearInterval(keepAlive); return; }
       speechSynthesis.pause();
       speechSynthesis.resume();
     }, 10000);
-    u.onend = () => clearInterval(keepAlive);
+    u.onend  = () => clearInterval(keepAlive);
     u.onerror = () => clearInterval(keepAlive);
   }, 300);
 }
@@ -1031,7 +1024,7 @@ async function leaveRoom() {
   stopPing();
   wsSend({ type: 'leave', clientId: S.myId });
   await new Promise(r => setTimeout(r, 100));
-  S.roomId = null; // onclose の自動再接続を抑止
+  S.roomId = null;
   if (S.ws) { S.ws.onclose = null; S.ws.close(); S.ws = null; }
   clearTimeout(S.reconnectTimer);
   clearTimeout(wakeBannerTimer);

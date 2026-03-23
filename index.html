@@ -714,21 +714,10 @@ function startRec() {
     renderParticipants();
   };
 
-  // 結合バッファ: 直前送信から1秒以内のisFinalは結合してまとめて送信
-  // 句読点が来た瞬間は即送信してリアルタイム感を保つ
-  const PUNCT_RE  = /[。．！？!?.;\n]/;
-  const MERGE_MS  = 1000;
-  let mergeBuffer = '';
-  let mergeTimer  = null;
-
-  function flushMerge() {
-    clearTimeout(mergeTimer);
-    mergeTimer = null;
-    const text = mergeBuffer.trim();
-    mergeBuffer = '';
-    if (text) sendSpeech(text);
-  }
-  S._flushMerge = flushMerge;
+  // セッションスコープの重複排除
+  // isFinalはセッション内で累積されることがあるので
+  // 直前に送信した内容を記録して差分だけ送る
+  let sessionLastSent = '';
 
   r.onresult = e => {
     let interim = '', final = '';
@@ -738,18 +727,26 @@ function startRec() {
     }
     document.getElementById('interim').textContent = interim;
     animVol();
-    if (final.trim()) {
-      mergeBuffer += final.trim();
-      document.getElementById('interim').textContent = '';
-      if (PUNCT_RE.test(mergeBuffer)) {
-        // 句読点あり → 即送信
-        flushMerge();
-      } else {
-        // 句読点なし → 1秒待って結合送信
-        clearTimeout(mergeTimer);
-        mergeTimer = setTimeout(flushMerge, MERGE_MS);
-      }
+
+    const text = final.trim();
+    if (!text) return;
+    document.getElementById('interim').textContent = '';
+
+    // 完全一致は重複なので無視
+    if (text === sessionLastSent) return;
+
+    // 直前の送信内容で始まる累積テキスト → 差分だけ抽出
+    if (sessionLastSent && text.startsWith(sessionLastSent)) {
+      const diff = text.slice(sessionLastSent.length).trim();
+      if (!diff) return;
+      sessionLastSent = text;
+      sendSpeech(diff);
+      return;
     }
+
+    // 通常送信
+    sessionLastSent = text;
+    sendSpeech(text);
   };
 
   r.onerror = e => {
@@ -771,8 +768,6 @@ function startRec() {
 
 function stopRec() {
   S.recording = false;
-  // 停止時にバッファに残っているテキストを送信
-  if (S._flushMerge) { S._flushMerge(); S._flushMerge = null; }
   if (S.rec) { S.rec._stop?.(); try { S.rec.abort(); } catch {} S.rec = null; }
   document.getElementById('mic-btn')?.classList.remove('recording');
   const iconEl  = document.getElementById('mic-icon');
@@ -802,15 +797,9 @@ function animVol() {
 //  Send speech
 // ════════════════════════════════════════════════════════
 function sendSpeech(text) {
-  const now = Date.now();
-
-  // 完全一致の重複は弾く
-  if (text === S.lastSentText && now - S.lastSentTime < 1200) return;
-  S.lastSentText = text; S.lastSentTime = now;
-
+  if (!text) return;
   // 自分の発言は原文のままログ表示
   addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: text, translated: text, isMe: true });
-
   // サーバーへ送信（各受信者の母語に翻訳して配信）
   wsSend({ type: 'speech', text });
 }

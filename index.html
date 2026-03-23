@@ -751,8 +751,8 @@ function stopRec() {
   document.getElementById('mic-btn')?.classList.remove('recording');
   const iconEl  = document.getElementById('mic-icon');
   const labelEl = document.getElementById('mic-label');
-  if (iconEl)  iconEl.textContent  = '🎤';
-  if (labelEl) labelEl.textContent = 'マイクをオンにする';
+  if (iconEl)  iconEl.textContent  = '[Button]';
+  if (labelEl) labelEl.textContent = 'Mic ON';
   const interimEl = document.getElementById('interim');
   if (interimEl) interimEl.textContent = '';
   const volEl = document.getElementById('vol');

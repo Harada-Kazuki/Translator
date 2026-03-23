@@ -1,22 +1,28 @@
 /**
- * BABEL WebSocket + 静的ファイルサーバー (修正版)
+ * BABEL WebSocket + 静的ファイルサーバー
+ * - サーバー側でGemini APIを使って翻訳（クライアントへのAPIキー露出なし）
+ * - 同一ルーム内の受信言語ごとに1回だけ翻訳してキャッシュ → APIコール最小化
  *
- * 修正内容:
- *   1. 巨大メッセージを即 terminate (DoS対策)
- *   2. case 'leave' を追加 (明示的退出に対応)
- *   3. setConnUI への wakeBannerTimer 依存を除去 (関心分離)
+ * 環境変数:
+ *   GEMINI_API_KEY  ... Google AI StudioのAPIキー（Renderの環境変数に設定）
+ *   PORT            ... リッスンポート（Renderが自動設定）
  */
 
 const { WebSocketServer, WebSocket } = require('ws');
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
+const http  = require('http');
+const fs    = require('fs');
+const path  = require('path');
+const https = require('https');
 
-const PORT = process.env.PORT || 3000;
+const PORT           = process.env.PORT || 3000;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_URL     =
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-// メッセージサイズ上限 (8KiB) — 超過は即切断
+// メッセージサイズ上限 (8KiB)
 const MAX_MSG_BYTES = 8192;
 
+// ── HTTP ──────────────────────────────────────────────────────
 const httpServer = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -25,6 +31,7 @@ const httpServer = http.createServer((req, res) => {
       rooms: rooms.size,
       connections: totalConnections(),
       uptime: Math.floor(process.uptime()),
+      gemini: !!GEMINI_API_KEY,
     }));
     return;
   }
@@ -41,9 +48,14 @@ const httpServer = http.createServer((req, res) => {
   });
 });
 
+// ── WebSocket ──────────────────────────────────────────────────
 const wss = new WebSocketServer({ server: httpServer });
 
-// rooms: Map<roomId, Map<clientId, { ws, name, lang }>>
+/**
+ * rooms: Map<roomId, Map<clientId, {
+ *   ws, name, lang (話す言語), receiveLang (受信言語)
+ * }>>
+ */
 const rooms = new Map();
 
 function totalConnections() {
@@ -62,6 +74,7 @@ function cleanRoom(roomId) {
   if (room && room.size === 0) rooms.delete(roomId);
 }
 
+/** excludeId を除く全クライアントに同じJSONを送る */
 function broadcast(room, data, excludeId = null) {
   const json = JSON.stringify(data);
   for (const [id, client] of room) {
@@ -72,23 +85,138 @@ function broadcast(room, data, excludeId = null) {
   }
 }
 
+// ── Gemini 翻訳 ────────────────────────────────────────────────
+const LANG_NAMES = {
+  ja: '日本語', en: 'English', zh: '中文', ko: '한국어',
+  vi: 'Tiếng Việt', th: 'ภาษาไทย', pt: 'Português',
+  es: 'Español', fr: 'Français', de: 'Deutsch',
+};
+
+/**
+ * Gemini APIを使ってテキストを翻訳する
+ * @param {string} text     原文
+ * @param {string} fromLang 言語コード (例: 'ja')
+ * @param {string} toLang   言語コード (例: 'en')
+ * @returns {Promise<string>} 翻訳結果（失敗時は原文）
+ */
+async function translateWithGemini(text, fromLang, toLang) {
+  if (!GEMINI_API_KEY) {
+    console.warn('[gemini] API key not set — returning original text');
+    return text;
+  }
+  if (fromLang === toLang) return text;
+
+  const toLangName   = LANG_NAMES[toLang]   || toLang;
+  const fromLangName = LANG_NAMES[fromLang] || fromLang;
+
+  const prompt =
+    `Translate the following text from ${fromLangName} to ${toLangName}.\n` +
+    `Output ONLY the translated text with no explanation, no quotes, and no extra punctuation.\n\n` +
+    `Text: ${text}`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+  });
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      console.warn('[gemini] request timed out');
+      resolve(text);
+    }, 8000);
+
+    const req = https.request(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+    }, (res) => {
+      let raw = '';
+      res.on('data', chunk => { raw += chunk; });
+      res.on('end', () => {
+        clearTimeout(timeout);
+        try {
+          const json = JSON.parse(raw);
+          const translated = json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          resolve(translated || text);
+        } catch {
+          console.error('[gemini] parse error:', raw.slice(0, 200));
+          resolve(text);
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      clearTimeout(timeout);
+      console.error('[gemini] request error:', err.message);
+      resolve(text);
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
+
+/**
+ * speech受信時のメイン処理
+ * - ルーム内の受信言語セットを収集
+ * - 言語ごとに1回だけGeminiで翻訳（同一言語はキャッシュ再利用）
+ * - 各クライアントに自分用の翻訳済みspeechを個別送信
+ */
+async function handleSpeech(room, senderId, text) {
+  const sender = room.get(senderId);
+  if (!sender) return;
+
+  const senderLang = sender.lang; // 話す言語
+
+  // 受信者ごとに必要な翻訳言語を収集（送信者自身を除く）
+  const targetLangs = new Set();
+  for (const [id, client] of room) {
+    if (id === senderId) continue;
+    targetLangs.add(client.receiveLang || client.lang);
+  }
+
+  // 言語ごとに1回だけ翻訳してキャッシュ
+  const cache = {}; // { [toLang]: translatedText }
+  await Promise.all([...targetLangs].map(async (toLang) => {
+    cache[toLang] = await translateWithGemini(text, senderLang, toLang);
+  }));
+
+  // 各クライアントに個別送信
+  for (const [id, client] of room) {
+    if (id === senderId) continue;
+    if (client.ws.readyState !== WebSocket.OPEN) continue;
+
+    const receiveLang = client.receiveLang || client.lang;
+    const translated  = cache[receiveLang] ?? text;
+
+    client.ws.send(JSON.stringify({
+      type: 'speech',
+      clientId: senderId,
+      name:     sender.name,
+      lang:     senderLang,
+      original: text,
+      translated,
+    }));
+  }
+}
+
+// ── 接続処理 ───────────────────────────────────────────────────
 wss.on('connection', (ws) => {
-  let currentRoomId  = null;
+  let currentRoomId   = null;
   let currentClientId = null;
 
   let lastSeen = Date.now();
   const aliveCheck = setInterval(() => {
     if (Date.now() - lastSeen > 60000) {
-      console.log(`[timeout] client=${currentClientId} — no message for 60s, terminating`);
+      console.log(`[timeout] client=${currentClientId} — terminating`);
       clearInterval(aliveCheck);
       ws.terminate();
     }
   }, 30000);
 
   ws.on('message', (raw) => {
-    // ── [修正1] 巨大メッセージ対策 ──
+    // 巨大メッセージ対策
     if (raw.length > MAX_MSG_BYTES) {
-      console.warn(`[oversized] client=${currentClientId} sent ${raw.length} bytes — terminating`);
+      console.warn(`[oversized] client=${currentClientId} sent ${raw.length} bytes`);
       clearInterval(aliveCheck);
       ws.terminate();
       return;
@@ -110,20 +238,21 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
 
       case 'join': {
-        const roomId    = String(msg.roomId   || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
-        const clientId  = String(msg.clientId || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
-        const name      = String(msg.name     || '匿名').slice(0, 20);
-        const lang      = String(msg.lang     || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
+        const roomId     = String(msg.roomId      || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
+        const clientId   = String(msg.clientId    || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
+        const name       = String(msg.name        || '匿名').slice(0, 20);
+        const lang       = String(msg.lang        || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
+        // ← 追加: receiveLang（受信言語）
+        const receiveLang = String(msg.receiveLang || lang).replace(/[^a-zA-Z-]/g, '').slice(0, 10);
 
         if (!roomId || !clientId) return;
-
         if (currentRoomId && currentClientId) leaveRoom(currentRoomId, currentClientId);
 
         currentRoomId   = roomId;
         currentClientId = clientId;
 
         const room = getOrCreateRoom(roomId);
-        room.set(clientId, { ws, name, lang });
+        room.set(clientId, { ws, name, lang, receiveLang });
 
         const participants = [...room.entries()]
           .filter(([id]) => id !== clientId)
@@ -131,11 +260,10 @@ wss.on('connection', (ws) => {
 
         ws.send(JSON.stringify({ type: 'room_state', participants }));
         broadcast(room, { type: 'join', clientId, name, lang }, clientId);
-        console.log(`[join]  room=${roomId} client=${clientId} name=${name} members=${room.size}`);
+        console.log(`[join]  room=${roomId} client=${clientId} name=${name} lang=${lang} recv=${receiveLang} members=${room.size}`);
         break;
       }
 
-      // ── [修正2] 明示的な退出に対応 ──
       case 'leave': {
         if (currentRoomId && currentClientId) {
           leaveRoom(currentRoomId, currentClientId);
@@ -151,13 +279,11 @@ wss.on('connection', (ws) => {
         if (!room) return;
         const text = String(msg.text || '').slice(0, 500);
         if (!text) return;
-        broadcast(room, {
-          type: 'speech',
-          clientId: currentClientId,
-          name: room.get(currentClientId)?.name || '?',
-          lang: room.get(currentClientId)?.lang  || 'ja',
-          text,
-        }, currentClientId);
+
+        // 非同期で翻訳 & 個別配信
+        handleSpeech(room, currentClientId, text).catch(err => {
+          console.error('[handleSpeech]', err);
+        });
         break;
       }
 
@@ -198,6 +324,10 @@ function leaveRoom(roomId, clientId) {
   cleanRoom(roomId);
 }
 
+// ── 起動 ───────────────────────────────────────────────────────
 httpServer.listen(PORT, () => {
   console.log(`BABEL server listening on port ${PORT}`);
+  if (!GEMINI_API_KEY) {
+    console.warn('⚠️  GEMINI_API_KEY が未設定です。翻訳はスキップされ原文が返ります。');
+  }
 });

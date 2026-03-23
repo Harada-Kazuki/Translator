@@ -1,5 +1,7 @@
 /**
  * Kw-Translator WebSocket + 静的ファイルサーバー
+ * - 母語1つを設定するだけで全言語間の翻訳に対応
+ * - 受信者ごとに必要な言語だけAPIを叩いてキャッシュ
  *
  * 環境変数:
  *   GEMINI_API_KEY  ... Google AI StudioのAPIキー
@@ -14,7 +16,7 @@ const https = require('https');
 
 const PORT             = process.env.PORT || 3000;
 const GEMINI_API_KEY   = process.env.GEMINI_API_KEY || '';
-const MODEL_NAME       = 'gemini-2.0-flash-lite';
+const MODEL_NAME       = 'gemini-3.1-flash-lite-preview';
 const GEMINI_URL       = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
 const SUPABASE_URL     = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY     = process.env.SUPABASE_SERVICE_KEY || '';
@@ -47,7 +49,7 @@ async function saveLog({ roomId, speaker, lang, original, translated }) {
   req.end();
 }
 
-// ── Supabase ログ取得 ────────────────────────────────────────
+// ── Supabase ログ取得（ルームID or 全件） ────────────────────────
 async function fetchLogs(roomId) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return [];
   const query = roomId
@@ -90,6 +92,7 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  // ログ取得API: GET /logs?room=XXXX
   if (req.url.startsWith('/logs')) {
     const qs     = new URL(req.url, 'http://localhost').searchParams;
     const roomId = qs.get('room') || '';
@@ -120,6 +123,14 @@ const httpServer = http.createServer((req, res) => {
 // ── WebSocket ──────────────────────────────────────────────────
 const wss = new WebSocketServer({ server: httpServer });
 
+/**
+ * rooms: Map<roomId, Map<clientId, {
+ *   ws, name, lang (母語コード e.g. 'ja')
+ * }>>
+ *
+ * 母語1つだけ管理。
+ * 話す言語 = 母語、受け取りたい言語 = 母語 → サーバーが自動変換
+ */
 const rooms = new Map();
 
 function totalConnections() {
@@ -148,18 +159,8 @@ function broadcast(room, data, excludeId = null) {
   }
 }
 
-// ── 翻訳が必要か判定 ──────────────────────────────────────────
-// 'zh' と 'zh-TW' は別言語として扱う（簡体字 vs 繁体字）
-// それ以外は先頭タグ（'-' 前）が一致していれば同一言語とみなす
-function isSameLang(a, b) {
-  if (a === b) return true;
-  // zh系は完全一致のみ同一扱い
-  if (a.startsWith('zh') || b.startsWith('zh')) return false;
-  // その他は基底タグで比較（例: en-US と en-GB は同一）
-  return a.split('-')[0] === b.split('-')[0];
-}
-
 // ── Gemini 翻訳 ────────────────────────────────────────────────
+// 30言語対応
 const LANG_NAMES = {
   ja:  '日本語',
   en:  'English',
@@ -199,8 +200,12 @@ async function translateWithGemini(text, fromLang, toLang) {
     return text;
   }
 
-  // 同言語はスキップ（修正済み：zh/zh-TW を正しく区別）
-  if (isSameLang(fromLang, toLang)) return text;
+  // 同言語はそのまま返す
+  const fromBase = fromLang.split('-')[0];
+  const toBase   = toLang.split('-')[0];
+  if (fromBase === toBase && fromLang !== 'zh') return text;
+  // zh と zh-TW は別扱い
+  if (fromLang === toLang) return text;
 
   const fromName = LANG_NAMES[fromLang] || fromLang;
   const toName   = LANG_NAMES[toLang]   || toLang;
@@ -260,7 +265,10 @@ async function translateWithGemini(text, fromLang, toLang) {
   });
 }
 
-// ── 翻訳キャッシュ（直近200件） ────────────────────────────────
+/**
+ * 翻訳結果キャッシュ（重複API呼び出し防止）
+ * 直近200件を保持。同じ文章は何度話してもAPIを1回しか叩かない
+ */
 const translationCache = new Map();
 const CACHE_MAX = 200;
 
@@ -275,17 +283,16 @@ function cacheSet(text, fromLang, toLang, value) {
 }
 
 /**
- * speech 受信時のメイン処理
- *
- * 最適化ポイント：
- * 1. 同言語の受信者には翻訳せずそのまま送信（APIコール節約）
- * 2. 同じ翻訳先言語は1回だけAPIを叩いてキャッシュ
- * 3. 短すぎるテキスト（2文字以下）はスキップ
+ * speech受信時のメイン処理
+ * - 送信者の母語 → 各受信者の母語 に翻訳
+ * - 同じ翻訳先言語はキャッシュして1回だけAPIを叩く
+ * - 短すぎるテキスト（2文字以下）はスキップ
  */
 async function handleSpeech(room, senderId, text, currentRoomId) {
   const sender = room.get(senderId);
   if (!sender) return;
 
+  // 相槌など短すぎるものはスキップ
   if ([...text].length <= 2) {
     console.log(`[speech] too short, skip: "${text}"`);
     return;
@@ -294,16 +301,19 @@ async function handleSpeech(room, senderId, text, currentRoomId) {
   const fromLang = sender.lang;
   console.log(`[speech] from=${sender.name}(${fromLang}) text="${text}" roomSize=${room.size}`);
 
-  // 受信者の言語セットを収集（同言語は翻訳不要なのでAPIを叩かない）
+  // 送信者以外の受信言語を収集
   const targetLangs = new Set();
   for (const [id, client] of room) {
     if (id === senderId) continue;
-    if (!isSameLang(fromLang, client.lang)) {
-      targetLangs.add(client.lang);
-    }
+    targetLangs.add(client.lang);
   }
 
-  // 翻訳が必要な言語のみAPIを叩く（キャッシュヒットは除外）
+  if (targetLangs.size === 0) {
+    console.log('[speech] No other participants — skipping');
+    return;
+  }
+
+  // 言語ごとに翻訳（キャッシュがあればAPIをスキップ）
   const cache = {};
   await Promise.all([...targetLangs].map(async (toLang) => {
     const hit = cacheGet(text, fromLang, toLang);
@@ -317,16 +327,13 @@ async function handleSpeech(room, senderId, text, currentRoomId) {
     cache[toLang] = translated;
   }));
 
-  // 各クライアントに送信
+  // 各クライアントに個別送信 & ログ保存（言語ごとに1レコード）
   const savedLangs = new Set();
   for (const [id, client] of room) {
     if (id === senderId) continue;
     if (client.ws.readyState !== WebSocket.OPEN) continue;
 
-    // 同言語なら原文そのまま（翻訳なし）
-    const translated = isSameLang(fromLang, client.lang)
-      ? text
-      : (cache[client.lang] ?? text);
+    const translated = cache[client.lang] ?? text;
 
     client.ws.send(JSON.stringify({
       type:       'speech',
@@ -337,7 +344,7 @@ async function handleSpeech(room, senderId, text, currentRoomId) {
       translated,
     }));
 
-    // 同翻訳先言語は1レコードのみ保存
+    // 同じ翻訳先言語は1回だけ保存
     if (!savedLangs.has(client.lang)) {
       savedLangs.add(client.lang);
       saveLog({
@@ -350,7 +357,7 @@ async function handleSpeech(room, senderId, text, currentRoomId) {
     }
   }
 
-  // 送信者自身のログ（原文）
+  // 送信者自身のログも保存（原文のまま）
   saveLog({
     roomId:     currentRoomId,
     speaker:    sender.name,
@@ -401,6 +408,7 @@ wss.on('connection', (ws) => {
         const roomId   = String(msg.roomId   || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
         const clientId = String(msg.clientId || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
         const name     = String(msg.name     || '匿名').slice(0, 20);
+        // 母語コードのみ（'ja', 'en', 'zh-TW' など）
         const lang     = String(msg.lang     || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
 
         if (!roomId || !clientId) return;

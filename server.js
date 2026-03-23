@@ -1,10 +1,10 @@
 /**
- * BABEL WebSocket + 静的ファイルサーバー
- * - サーバー側でGemini APIを使って翻訳（クライアントへのAPIキー露出なし）
- * - 同一ルーム内の受信言語ごとに1回だけ翻訳してキャッシュ → APIコール最小化
+ * Kw-Translator WebSocket + 静的ファイルサーバー
+ * - 母語1つを設定するだけで全言語間の翻訳に対応
+ * - 受信者ごとに必要な言語だけAPIを叩いてキャッシュ
  *
  * 環境変数:
- *   GEMINI_API_KEY  ... Google AI StudioのAPIキー（Renderの環境変数に設定）
+ *   GEMINI_API_KEY  ... Google AI StudioのAPIキー
  *   PORT            ... リッスンポート（Renderが自動設定）
  */
 
@@ -19,7 +19,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_URL     =
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-// メッセージサイズ上限 (8KiB)
 const MAX_MSG_BYTES = 8192;
 
 // ── HTTP ──────────────────────────────────────────────────────
@@ -53,8 +52,11 @@ const wss = new WebSocketServer({ server: httpServer });
 
 /**
  * rooms: Map<roomId, Map<clientId, {
- *   ws, name, lang (話す言語), receiveLang (受信言語)
+ *   ws, name, lang (母語コード e.g. 'ja')
  * }>>
+ *
+ * 母語1つだけ管理。
+ * 話す言語 = 母語、受け取りたい言語 = 母語 → サーバーが自動変換
  */
 const rooms = new Map();
 
@@ -74,7 +76,6 @@ function cleanRoom(roomId) {
   if (room && room.size === 0) rooms.delete(roomId);
 }
 
-/** excludeId を除く全クライアントに同じJSONを送る */
 function broadcast(room, data, excludeId = null) {
   const json = JSON.stringify(data);
   for (const [id, client] of room) {
@@ -86,32 +87,59 @@ function broadcast(room, data, excludeId = null) {
 }
 
 // ── Gemini 翻訳 ────────────────────────────────────────────────
+// 30言語対応
 const LANG_NAMES = {
-  ja: '日本語', en: 'English', zh: '中文', ko: '한국어',
-  vi: 'Tiếng Việt', th: 'ภาษาไทย', pt: 'Português',
-  es: 'Español', fr: 'Français', de: 'Deutsch',
+  ja:  '日本語',
+  en:  'English',
+  zh:  'Chinese (Simplified)',
+  'zh-TW': 'Chinese (Traditional)',
+  ko:  'Korean',
+  vi:  'Vietnamese',
+  th:  'Thai',
+  id:  'Indonesian',
+  ms:  'Malay',
+  tl:  'Filipino (Tagalog)',
+  hi:  'Hindi',
+  bn:  'Bengali',
+  ur:  'Urdu',
+  ar:  'Arabic',
+  fa:  'Persian (Farsi)',
+  tr:  'Turkish',
+  ru:  'Russian',
+  uk:  'Ukrainian',
+  pl:  'Polish',
+  nl:  'Dutch',
+  de:  'German',
+  fr:  'French',
+  es:  'Spanish',
+  pt:  'Portuguese',
+  it:  'Italian',
+  ro:  'Romanian',
+  sv:  'Swedish',
+  no:  'Norwegian',
+  da:  'Danish',
+  fi:  'Finnish',
 };
 
-/**
- * Gemini APIを使ってテキストを翻訳する
- * @param {string} text     原文
- * @param {string} fromLang 言語コード (例: 'ja')
- * @param {string} toLang   言語コード (例: 'en')
- * @returns {Promise<string>} 翻訳結果（失敗時は原文）
- */
 async function translateWithGemini(text, fromLang, toLang) {
   if (!GEMINI_API_KEY) {
     console.warn('[gemini] API key not set — returning original text');
     return text;
   }
+
+  // 同言語はそのまま返す
+  const fromBase = fromLang.split('-')[0];
+  const toBase   = toLang.split('-')[0];
+  if (fromBase === toBase && fromLang !== 'zh') return text;
+  // zh と zh-TW は別扱い
   if (fromLang === toLang) return text;
 
-  const toLangName   = LANG_NAMES[toLang]   || toLang;
-  const fromLangName = LANG_NAMES[fromLang] || fromLang;
+  const fromName = LANG_NAMES[fromLang] || fromLang;
+  const toName   = LANG_NAMES[toLang]   || toLang;
 
   const prompt =
-    `Translate the following text from ${fromLangName} to ${toLangName}.\n` +
-    `Output ONLY the translated text with no explanation, no quotes, and no extra punctuation.\n\n` +
+    `Translate the following text from ${fromName} to ${toName}.\n` +
+    `Output ONLY the translated text. No explanations, no quotes, no extra punctuation.\n\n` +
     `Text: ${text}`;
 
   const body = JSON.stringify({
@@ -127,7 +155,10 @@ async function translateWithGemini(text, fromLang, toLang) {
 
     const req = https.request(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
     }, (res) => {
       let raw = '';
       res.on('data', chunk => { raw += chunk; });
@@ -136,7 +167,13 @@ async function translateWithGemini(text, fromLang, toLang) {
         try {
           const json = JSON.parse(raw);
           const translated = json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          resolve(translated || text);
+          if (translated) {
+            console.log(`[gemini] ${fromLang}→${toLang}: "${text}" => "${translated}"`);
+            resolve(translated);
+          } else {
+            console.warn('[gemini] empty response:', raw.slice(0, 200));
+            resolve(text);
+          }
         } catch {
           console.error('[gemini] parse error:', raw.slice(0, 200));
           resolve(text);
@@ -157,27 +194,32 @@ async function translateWithGemini(text, fromLang, toLang) {
 
 /**
  * speech受信時のメイン処理
- * - ルーム内の受信言語セットを収集
- * - 言語ごとに1回だけGeminiで翻訳（同一言語はキャッシュ再利用）
- * - 各クライアントに自分用の翻訳済みspeechを個別送信
+ * - 送信者の母語 → 各受信者の母語 に翻訳
+ * - 同じ翻訳先言語はキャッシュして1回だけAPIを叩く
  */
 async function handleSpeech(room, senderId, text) {
   const sender = room.get(senderId);
   if (!sender) return;
 
-  const senderLang = sender.lang; // 話す言語
+  const fromLang = sender.lang;
+  console.log(`[speech] from=${sender.name}(${fromLang}) text="${text}" roomSize=${room.size}`);
 
-  // 受信者ごとに必要な翻訳言語を収集（送信者自身を除く）
+  // 送信者以外の受信言語を収集
   const targetLangs = new Set();
   for (const [id, client] of room) {
     if (id === senderId) continue;
-    targetLangs.add(client.receiveLang || client.lang);
+    targetLangs.add(client.lang);
   }
 
-  // 言語ごとに1回だけ翻訳してキャッシュ
-  const cache = {}; // { [toLang]: translatedText }
+  if (targetLangs.size === 0) {
+    console.log('[speech] No other participants — skipping');
+    return;
+  }
+
+  // 言語ごとに1回だけ翻訳（キャッシュ）
+  const cache = {};
   await Promise.all([...targetLangs].map(async (toLang) => {
-    cache[toLang] = await translateWithGemini(text, senderLang, toLang);
+    cache[toLang] = await translateWithGemini(text, fromLang, toLang);
   }));
 
   // 各クライアントに個別送信
@@ -185,15 +227,14 @@ async function handleSpeech(room, senderId, text) {
     if (id === senderId) continue;
     if (client.ws.readyState !== WebSocket.OPEN) continue;
 
-    const receiveLang = client.receiveLang || client.lang;
-    const translated  = cache[receiveLang] ?? text;
+    const translated = cache[client.lang] ?? text;
 
     client.ws.send(JSON.stringify({
-      type: 'speech',
-      clientId: senderId,
-      name:     sender.name,
-      lang:     senderLang,
-      original: text,
+      type:       'speech',
+      clientId:   senderId,
+      name:       sender.name,
+      lang:       fromLang,
+      original:   text,
       translated,
     }));
   }
@@ -207,14 +248,13 @@ wss.on('connection', (ws) => {
   let lastSeen = Date.now();
   const aliveCheck = setInterval(() => {
     if (Date.now() - lastSeen > 60000) {
-      console.log(`[timeout] client=${currentClientId} — terminating`);
+      console.log(`[timeout] client=${currentClientId}`);
       clearInterval(aliveCheck);
       ws.terminate();
     }
   }, 30000);
 
   ws.on('message', (raw) => {
-    // 巨大メッセージ対策
     if (raw.length > MAX_MSG_BYTES) {
       console.warn(`[oversized] client=${currentClientId} sent ${raw.length} bytes`);
       clearInterval(aliveCheck);
@@ -238,12 +278,11 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
 
       case 'join': {
-        const roomId     = String(msg.roomId      || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
-        const clientId   = String(msg.clientId    || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
-        const name       = String(msg.name        || '匿名').slice(0, 20);
-        const lang       = String(msg.lang        || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
-        // ← 追加: receiveLang（受信言語）
-        const receiveLang = String(msg.receiveLang || lang).replace(/[^a-zA-Z-]/g, '').slice(0, 10);
+        const roomId   = String(msg.roomId   || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
+        const clientId = String(msg.clientId || '').replace(/[^a-z0-9]/g, '').slice(0, 16);
+        const name     = String(msg.name     || '匿名').slice(0, 20);
+        // 母語コードのみ（'ja', 'en', 'zh-TW' など）
+        const lang     = String(msg.lang     || 'ja').replace(/[^a-zA-Z-]/g, '').slice(0, 10);
 
         if (!roomId || !clientId) return;
         if (currentRoomId && currentClientId) leaveRoom(currentRoomId, currentClientId);
@@ -252,7 +291,7 @@ wss.on('connection', (ws) => {
         currentClientId = clientId;
 
         const room = getOrCreateRoom(roomId);
-        room.set(clientId, { ws, name, lang, receiveLang });
+        room.set(clientId, { ws, name, lang });
 
         const participants = [...room.entries()]
           .filter(([id]) => id !== clientId)
@@ -260,7 +299,7 @@ wss.on('connection', (ws) => {
 
         ws.send(JSON.stringify({ type: 'room_state', participants }));
         broadcast(room, { type: 'join', clientId, name, lang }, clientId);
-        console.log(`[join]  room=${roomId} client=${clientId} name=${name} lang=${lang} recv=${receiveLang} members=${room.size}`);
+        console.log(`[join]  room=${roomId} client=${clientId} name=${name} lang=${lang} members=${room.size}`);
         break;
       }
 
@@ -280,7 +319,6 @@ wss.on('connection', (ws) => {
         const text = String(msg.text || '').slice(0, 500);
         if (!text) return;
 
-        // 非同期で翻訳 & 個別配信
         handleSpeech(room, currentClientId, text).catch(err => {
           console.error('[handleSpeech]', err);
         });
@@ -292,9 +330,9 @@ wss.on('connection', (ws) => {
         const room = rooms.get(currentRoomId);
         if (!room) return;
         broadcast(room, {
-          type: 'speaking',
+          type:     'speaking',
           clientId: currentClientId,
-          active: !!msg.active,
+          active:   !!msg.active,
         }, currentClientId);
         break;
       }
@@ -326,8 +364,10 @@ function leaveRoom(roomId, clientId) {
 
 // ── 起動 ───────────────────────────────────────────────────────
 httpServer.listen(PORT, () => {
-  console.log(`BABEL server listening on port ${PORT}`);
+  console.log(`Kw-Translator server listening on port ${PORT}`);
   if (!GEMINI_API_KEY) {
     console.warn('⚠️  GEMINI_API_KEY が未設定です。翻訳はスキップされ原文が返ります。');
+  } else {
+    console.log(`✅  Gemini API ready (${Object.keys(LANG_NAMES).length} languages)`);
   }
 });

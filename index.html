@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Kw-Translator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Roboto+Mono:wght@500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -24,9 +24,9 @@
   --radius: 10px;
   --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
 }
-body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 
-.app { max-width: 860px; margin: 0 auto; padding: 20px 16px 80px; }
+.app { max-width: 860px; margin: 0 auto; padding: 20px 16px 80px; flex: 1; width: 100%; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
 .logo { font-size: 17px; font-weight: 600; letter-spacing: .5px; }
 .logo-sub { font-size: 11px; color: var(--text-sub); margin-left: 6px; font-weight: 400; }
@@ -52,15 +52,12 @@ input[type=text], select {
 }
 input:focus, select:focus { border-color: var(--accent); }
 
-/* 言語セレクト — 検索ボックス付きカスタム */
 .lang-select-wrap { position: relative; }
 .lang-select-wrap select { padding-right: 32px; }
 
-/* 名前 + 言語 横並び */
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 @media (max-width: 400px) { .field-row { grid-template-columns: 1fr; } }
 
-/* 母語ヒント */
 .lang-hint {
   font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.5;
 }
@@ -158,6 +155,134 @@ input:focus, select:focus { border-color: var(--accent); }
 .toast.warn { background: #7c2d12; }
 .toast.ok   { background: #14532d; }
 @keyframes tin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+
+/* ─── Footer ─── */
+.site-footer {
+  background: #0e0e0e;
+  color: #fff;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.footer-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+/* 背景の装飾ライン */
+.site-footer::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #ffffff18, #ffffff40, #ffffff18, transparent);
+}
+
+.site-footer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      #ffffff04 39px,
+      #ffffff04 40px
+    );
+  pointer-events: none;
+}
+
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-org {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #666;
+  line-height: 1;
+}
+
+.footer-author {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #ffffff;
+  line-height: 1.2;
+  position: relative;
+  display: inline-block;
+}
+
+/* 名前のアンダーライン装飾 */
+.footer-author::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, #fff, transparent);
+  opacity: 0.3;
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-product {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #444;
+}
+
+/* 縦区切り */
+.footer-sep {
+  width: 1px;
+  height: 20px;
+  background: #2a2a2a;
+}
+
+.footer-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #2a2a2a;
+  border: 1px solid #2a2a2a;
+  padding: 3px 7px;
+  border-radius: 3px;
+}
+
+@media (max-width: 500px) {
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .footer-right { gap: 8px; }
+}
 </style>
 </head>
 <body>
@@ -299,6 +424,21 @@ input:focus, select:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- Footer -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="footer-org">Kawaguchigumi IT Dev.</span>
+      <span class="footer-author">HARADA KAZUKI</span>
+    </div>
+    <div class="footer-right">
+      <span class="footer-product">Kw-Translator</span>
+      <div class="footer-sep"></div>
+      <span class="footer-badge">© 2025</span>
+    </div>
+  </div>
+</footer>
+
 <!-- Log Modal -->
 <div class="modal-bg" id="log-modal" role="dialog" aria-modal="true">
   <div class="modal" style="max-width:680px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
@@ -342,8 +482,6 @@ input:focus, select:focus { border-color: var(--accent); }
 // ════════════════════════════════════════════════════════
 const WS_URL = 'wss://translator-5t9v.onrender.com';
 
-// 言語コード → Web Speech API の BCP47 タグ
-// （音声認識に使う。同じ言語でも複数バリアントある場合は代表を選択）
 const LANG_TO_BCP47 = {
   'ja':    'ja-JP',
   'en':    'en-US',
@@ -382,7 +520,7 @@ const LANG_TO_BCP47 = {
 // ════════════════════════════════════════════════════════
 const S = {
   roomId: null, myId: null, myName: '',
-  lang: 'ja',           // 母語コード（話す＆受け取る言語）
+  lang: 'ja',
   ttsEnabled: true, recording: false, rec: null,
   ws: null, wsReady: false,
   reconnectTimer: null, reconnectCount: 0,
@@ -390,7 +528,7 @@ const S = {
   msgCount: 0,
   lastSentText: '', lastSentTime: 0,
   feedInitialized: false,
-  log: [], // 発言ログ保存用
+  log: [],
 };
 
 const PAL = ['#4f46e5','#0891b2','#16a34a','#ca8a04','#dc2626','#9333ea','#0e7490','#b45309'];
@@ -546,13 +684,12 @@ function connectWS() {
     document.getElementById('wake-banner').classList.add('hidden');
     setConnUI('connected');
     startPing();
-    // 母語1つだけ送信
     wsSend({
       type:     'join',
       roomId:   S.roomId,
       clientId: S.myId,
       name:     S.myName,
-      lang:     S.lang,   // 'ja', 'en', 'zh-TW' など
+      lang:     S.lang,
     });
   };
 
@@ -628,7 +765,6 @@ function onServerMsg(d) {
         isMe:       false,
       });
       if (S.ttsEnabled && d.translated?.trim()) {
-        // 自分の母語のBCP47タグでTTS
         speak(d.translated, LANG_TO_BCP47[S.lang] || S.lang);
       }
       break;
@@ -722,7 +858,6 @@ function startRec() {
   if (S.rec) { try { S.rec.abort(); } catch {} S.rec = null; }
 
   const r = new SR();
-  // 母語のBCP47タグで音声認識
   r.lang = LANG_TO_BCP47[S.lang] || S.lang;
   r.continuous = true; r.interimResults = true;
   let stopped = false;
@@ -737,9 +872,6 @@ function startRec() {
     renderParticipants();
   };
 
-  // セッションスコープの重複排除
-  // isFinalはセッション内で累積されることがあるので
-  // 直前に送信した内容を記録して差分だけ送る
   let sessionLastSent = '';
 
   r.onresult = e => {
@@ -755,10 +887,8 @@ function startRec() {
     if (!text) return;
     document.getElementById('interim').textContent = '';
 
-    // 完全一致は重複なので無視
     if (text === sessionLastSent) return;
 
-    // 直前の送信内容で始まる累積テキスト → 差分だけ抽出
     if (sessionLastSent && text.startsWith(sessionLastSent)) {
       const diff = text.slice(sessionLastSent.length).trim();
       if (!diff) return;
@@ -767,7 +897,6 @@ function startRec() {
       return;
     }
 
-    // 通常送信
     sessionLastSent = text;
     sendSpeech(text);
   };
@@ -821,9 +950,7 @@ function animVol() {
 // ════════════════════════════════════════════════════════
 function sendSpeech(text) {
   if (!text) return;
-  // 自分の発言は原文のままログ表示
   addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: text, translated: text, isMe: true });
-  // サーバーへ送信（各受信者の母語に翻訳して配信）
   wsSend({ type: 'speech', text });
 }
 
@@ -871,7 +998,6 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
   meta.appendChild(nm); meta.appendChild(lg); meta.appendChild(tm);
   card.appendChild(meta);
 
-  // 原文と翻訳が異なる場合のみ原文を表示
   if (!isMe && original !== translated) {
     const orig = document.createElement('div');
     orig.className = 'msg-original';
@@ -886,7 +1012,6 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
   feed.appendChild(card);
   feed.scrollTop = feed.scrollHeight;
 
-  // ログ配列に保存
   S.log.push({
     datetime: new Date().toLocaleString('ja-JP'),
     name,
@@ -896,9 +1021,6 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
   });
 }
 
-// ════════════════════════════════════════════════════════
-//  Leave
-// ════════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════
 //  Log viewer
 // ════════════════════════════════════════════════════════
@@ -989,7 +1111,6 @@ function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ログモーダルの背景クリックで閉じる
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('log-modal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeLogModal();
@@ -1001,7 +1122,6 @@ async function leaveRoom() {
   wsSend({ type: 'leave' });
   await new Promise(r => setTimeout(r, 100));
 
-  // ログをCSVダウンロード
   if (S.log.length > 0) downloadCSV();
 
   S.roomId = null;
@@ -1018,7 +1138,7 @@ function downloadCSV() {
     ['日時', '発言者', '言語', '原文', '翻訳'].map(escCSV).join(','),
     ...S.log.map(r => [r.datetime, r.name, r.lang, r.original, r.translated].map(escCSV).join(',')),
   ];
-  const bom  = '﻿'; // ExcelでUTF-8を正しく開くためのBOM
+  const bom  = '﻿';
   const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');

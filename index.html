@@ -38,15 +38,32 @@ header { display: flex; align-items: center; justify-content: space-between; mar
 .screen { display: none; }
 .screen.active { display: block; }
 
-.setup-wrap { max-width: 420px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow); }
+/* ─── Setup ─── */
+.setup-wrap { max-width: 440px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow); }
 .setup-wrap h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
-.setup-wrap > p { font-size: 13px; color: var(--text-sub); margin-bottom: 24px; line-height: 1.6; }
+.setup-desc { font-size: 13px; color: var(--text-sub); margin-bottom: 24px; line-height: 1.6; }
+
 .field { margin-bottom: 14px; }
 label { font-size: 12px; color: var(--text-sub); display: block; margin-bottom: 5px; font-weight: 500; }
-input[type=text], select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--text); background: var(--surface); outline: none; transition: border-color .15s; -webkit-appearance: none; }
+input[type=text], select {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--text);
+  background: var(--surface); outline: none; transition: border-color .15s; -webkit-appearance: none;
+}
 input:focus, select:focus { border-color: var(--accent); }
+
+/* 言語セレクト — 検索ボックス付きカスタム */
+.lang-select-wrap { position: relative; }
+.lang-select-wrap select { padding-right: 32px; }
+
+/* 名前 + 言語 横並び */
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 @media (max-width: 400px) { .field-row { grid-template-columns: 1fr; } }
+
+/* 母語ヒント */
+.lang-hint {
+  font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.5;
+}
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 8px; border: 1px solid transparent; font-family: inherit; font-size: 14px; cursor: pointer; transition: all .12s; white-space: nowrap; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -65,6 +82,7 @@ input:focus, select:focus { border-color: var(--accent); }
 .join-row { display: flex; gap: 8px; }
 .join-row input { font-family: 'Roboto Mono', monospace; letter-spacing: 3px; text-transform: uppercase; font-size: 16px; text-align: center; }
 
+/* ─── Room ─── */
 .room-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .room-id-block { display: flex; align-items: center; gap: 4px; }
 .room-id { font-family: 'Roboto Mono', monospace; font-size: 20px; font-weight: 500; letter-spacing: 4px; }
@@ -72,8 +90,8 @@ input:focus, select:focus { border-color: var(--accent); }
 .icon-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 3px 5px; border-radius: 4px; transition: all .12s; }
 .icon-btn:hover { color: var(--text); background: var(--border); }
 .conn-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; border: 1px solid transparent; }
-.conn-badge.connected { background: #f0fdf4; color: var(--green); border-color: #bbf7d0; }
-.conn-badge.connecting { background: #fefce8; color: var(--yellow); border-color: #fde68a; }
+.conn-badge.connected    { background: #f0fdf4; color: var(--green); border-color: #bbf7d0; }
+.conn-badge.connecting   { background: #fefce8; color: var(--yellow); border-color: #fde68a; }
 .conn-badge.disconnected { background: #fafafa; color: var(--text-sub); border-color: var(--border); }
 .room-actions { margin-left: auto; display: flex; gap: 8px; }
 
@@ -94,11 +112,6 @@ input:focus, select:focus { border-color: var(--accent); }
 .msg-time { font-size: 11px; color: var(--text-muted); margin-left: auto; }
 .msg-original { font-size: 12px; color: var(--text-muted); margin-bottom: 3px; font-style: italic; }
 .msg-translated { font-size: 14px; line-height: 1.55; }
-
-/* 翻訳中インジケータ */
-.msg-translating { font-size: 13px; color: var(--text-muted); font-style: italic; }
-@keyframes blink { 0%,100%{opacity:.3} 50%{opacity:1} }
-.msg-translating::after { content: '...'; animation: blink 1s infinite; }
 
 .mic-section { margin-top: 10px; }
 .mic-btn { width: 100%; padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-family: inherit; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all .15s; box-shadow: var(--shadow); }
@@ -143,7 +156,7 @@ input:focus, select:focus { border-color: var(--accent); }
 .toast-wrap { position: fixed; bottom: 20px; right: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 100; }
 .toast { background: #1a1a1a; color: #fff; padding: 9px 14px; border-radius: 8px; font-size: 13px; max-width: 260px; animation: tin .2s ease; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
 .toast.warn { background: #7c2d12; }
-.toast.ok { background: #14532d; }
+.toast.ok   { background: #14532d; }
 @keyframes tin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
 </style>
 </head>
@@ -164,7 +177,9 @@ input:focus, select:focus { border-color: var(--accent); }
   <div class="screen active" id="screen-setup">
     <div class="setup-wrap">
       <h1>会議に参加する</h1>
-      <p>名前と言語を選んでスタート。<br>QRコードをスキャンして参加できます。</p>
+      <p class="setup-desc">
+        母語を選ぶだけでOK。相手が何語で話しても自動で翻訳します。
+      </p>
 
       <div class="field-row">
         <div class="field">
@@ -172,35 +187,43 @@ input:focus, select:focus { border-color: var(--accent); }
           <input type="text" id="input-name" placeholder="例：原田 一希" maxlength="20" autocomplete="nickname">
         </div>
         <div class="field">
-          <label>話す言語</label>
-          <select id="input-speak-lang">
-            <option value="ja-JP">🇯🇵 日本語</option>
-            <option value="en-US">🇺🇸 English</option>
-            <option value="zh-CN">🇨🇳 中文</option>
-            <option value="ko-KR">🇰🇷 한국어</option>
-            <option value="vi-VN">🇻🇳 Tiếng Việt</option>
-            <option value="th-TH">🇹🇭 ภาษาไทย</option>
-            <option value="pt-BR">🇧🇷 Português</option>
-            <option value="es-ES">🇪🇸 Español</option>
-            <option value="fr-FR">🇫🇷 Français</option>
-            <option value="de-DE">🇩🇪 Deutsch</option>
-          </select>
+          <label>母語（話す＆聞く言語）</label>
+          <div class="lang-select-wrap">
+            <select id="input-lang">
+              <option value="ja">🇯🇵 日本語</option>
+              <option value="en">🇺🇸 English</option>
+              <option value="zh">🇨🇳 中文（简体）</option>
+              <option value="zh-TW">🇹🇼 中文（繁體）</option>
+              <option value="ko">🇰🇷 한국어</option>
+              <option value="vi">🇻🇳 Tiếng Việt</option>
+              <option value="th">🇹🇭 ภาษาไทย</option>
+              <option value="id">🇮🇩 Bahasa Indonesia</option>
+              <option value="ms">🇲🇾 Bahasa Melayu</option>
+              <option value="tl">🇵🇭 Filipino</option>
+              <option value="hi">🇮🇳 हिन्दी</option>
+              <option value="bn">🇧🇩 বাংলা</option>
+              <option value="ur">🇵🇰 اردو</option>
+              <option value="ar">🇸🇦 العربية</option>
+              <option value="fa">🇮🇷 فارسی</option>
+              <option value="tr">🇹🇷 Türkçe</option>
+              <option value="ru">🇷🇺 Русский</option>
+              <option value="uk">🇺🇦 Українська</option>
+              <option value="pl">🇵🇱 Polski</option>
+              <option value="nl">🇳🇱 Nederlands</option>
+              <option value="de">🇩🇪 Deutsch</option>
+              <option value="fr">🇫🇷 Français</option>
+              <option value="es">🇪🇸 Español</option>
+              <option value="pt">🇧🇷 Português</option>
+              <option value="it">🇮🇹 Italiano</option>
+              <option value="ro">🇷🇴 Română</option>
+              <option value="sv">🇸🇪 Svenska</option>
+              <option value="no">🇳🇴 Norsk</option>
+              <option value="da">🇩🇰 Dansk</option>
+              <option value="fi">🇫🇮 Suomi</option>
+            </select>
+          </div>
+          <div class="lang-hint">この言語で話し、この言語に翻訳して受け取ります</div>
         </div>
-      </div>
-      <div class="field">
-        <label>相手が話す言語</label>
-        <select id="input-receive-lang">
-          <option value="ja">🇯🇵 日本語</option>
-          <option value="en">🇺🇸 English</option>
-          <option value="zh">🇨🇳 中文</option>
-          <option value="ko">🇰🇷 한국어</option>
-          <option value="vi">🇻🇳 Tiếng Việt</option>
-          <option value="th">🇹🇭 ภาษาไทย</option>
-          <option value="pt">🇧🇷 Português</option>
-          <option value="es">🇪🇸 Español</option>
-          <option value="fr">🇫🇷 Français</option>
-          <option value="de">🇩🇪 Deutsch</option>
-        </select>
       </div>
 
       <button class="btn btn-primary btn-full" onclick="createRoom()">ルームを作成</button>
@@ -297,12 +320,47 @@ input:focus, select:focus { border-color: var(--accent); }
 // ════════════════════════════════════════════════════════
 const WS_URL = 'wss://translator-5t9v.onrender.com';
 
+// 言語コード → Web Speech API の BCP47 タグ
+// （音声認識に使う。同じ言語でも複数バリアントある場合は代表を選択）
+const LANG_TO_BCP47 = {
+  'ja':    'ja-JP',
+  'en':    'en-US',
+  'zh':    'zh-CN',
+  'zh-TW': 'zh-TW',
+  'ko':    'ko-KR',
+  'vi':    'vi-VN',
+  'th':    'th-TH',
+  'id':    'id-ID',
+  'ms':    'ms-MY',
+  'tl':    'fil-PH',
+  'hi':    'hi-IN',
+  'bn':    'bn-BD',
+  'ur':    'ur-PK',
+  'ar':    'ar-SA',
+  'fa':    'fa-IR',
+  'tr':    'tr-TR',
+  'ru':    'ru-RU',
+  'uk':    'uk-UA',
+  'pl':    'pl-PL',
+  'nl':    'nl-NL',
+  'de':    'de-DE',
+  'fr':    'fr-FR',
+  'es':    'es-ES',
+  'pt':    'pt-BR',
+  'it':    'it-IT',
+  'ro':    'ro-RO',
+  'sv':    'sv-SE',
+  'no':    'nb-NO',
+  'da':    'da-DK',
+  'fi':    'fi-FI',
+};
+
 // ════════════════════════════════════════════════════════
 //  State
 // ════════════════════════════════════════════════════════
 const S = {
   roomId: null, myId: null, myName: '',
-  speakLang: 'ja-JP', receiveLang: 'ja',
+  lang: 'ja',           // 母語コード（話す＆受け取る言語）
   ttsEnabled: true, recording: false, rec: null,
   ws: null, wsReady: false,
   reconnectTimer: null, reconnectCount: 0,
@@ -314,7 +372,6 @@ const S = {
 
 const PAL = ['#4f46e5','#0891b2','#16a34a','#ca8a04','#dc2626','#9333ea','#0e7490','#b45309'];
 const pCol  = i => PAL[i % PAL.length];
-const lcLang = bcp => (bcp || '').split('-')[0];
 const randId = n => Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0, n).padEnd(n, 'A');
 const uid    = () => Math.random().toString(36).slice(2, 12);
 
@@ -385,16 +442,15 @@ function toggleTTS() {
 // ════════════════════════════════════════════════════════
 function readSetup() {
   return {
-    name:        document.getElementById('input-name').value.trim() || '匿名',
-    speakLang:   document.getElementById('input-speak-lang').value,
-    receiveLang: document.getElementById('input-receive-lang').value,
+    name: document.getElementById('input-name').value.trim() || '匿名',
+    lang: document.getElementById('input-lang').value,
   };
 }
 
 function createRoom() {
-  const { name, speakLang, receiveLang } = readSetup();
+  const { name, lang } = readSetup();
   resetState();
-  Object.assign(S, { roomId: randId(4), myId: uid(), myName: name, speakLang, receiveLang });
+  Object.assign(S, { roomId: randId(4), myId: uid(), myName: name, lang });
   enterRoom();
 }
 
@@ -402,9 +458,9 @@ function joinRoom() {
   const rid = document.getElementById('input-room-id').value
     .replace(/[^A-Za-z0-9]/g, '').toUpperCase();
   if (rid.length < 2) { toast('ルームIDを入力してください'); return; }
-  const { name, speakLang, receiveLang } = readSetup();
+  const { name, lang } = readSetup();
   resetState();
-  Object.assign(S, { roomId: rid, myId: uid(), myName: name, speakLang, receiveLang });
+  Object.assign(S, { roomId: rid, myId: uid(), myName: name, lang });
   enterRoom();
 }
 
@@ -424,7 +480,7 @@ function enterRoom() {
   document.getElementById('msg-count').textContent = '0 件';
   document.getElementById('plist').innerHTML = '';
 
-  S.participants[S.myId] = { name: S.myName, lang: lcLang(S.speakLang), speaking: false, isMe: true };
+  S.participants[S.myId] = { name: S.myName, lang: S.lang, speaking: false, isMe: true };
   S.participantOrder.push(S.myId);
   renderParticipants();
 
@@ -467,14 +523,13 @@ function connectWS() {
     document.getElementById('wake-banner').classList.add('hidden');
     setConnUI('connected');
     startPing();
-    // ← receiveLang を join 時に送信するように変更
+    // 母語1つだけ送信
     wsSend({
-      type: 'join',
-      roomId:      S.roomId,
-      clientId:    S.myId,
-      name:        S.myName,
-      lang:        lcLang(S.speakLang),
-      receiveLang: S.receiveLang,
+      type:     'join',
+      roomId:   S.roomId,
+      clientId: S.myId,
+      name:     S.myName,
+      lang:     S.lang,   // 'ja', 'en', 'zh-TW' など
     });
   };
 
@@ -540,7 +595,6 @@ function onServerMsg(d) {
       break;
     }
 
-    // ← サーバーが翻訳済み original + translated を両方送ってくる
     case 'speech':
       addMsg({
         id:         d.clientId,
@@ -550,7 +604,10 @@ function onServerMsg(d) {
         translated: d.translated,
         isMe:       false,
       });
-      if (S.ttsEnabled && d.translated?.trim()) speak(d.translated, S.receiveLang);
+      if (S.ttsEnabled && d.translated?.trim()) {
+        // 自分の母語のBCP47タグでTTS
+        speak(d.translated, LANG_TO_BCP47[S.lang] || S.lang);
+      }
       break;
 
     case 'speaking':
@@ -578,15 +635,13 @@ function renderParticipants() {
     const av = document.createElement('div');
     av.className = 'p-avatar';
     av.style.cssText = `background:${col}20;color:${col}`;
-    av.textContent = [...p.name][0] || '?';
+    av.textContent = [...(p.name || '?')][0] || '?';
 
     const info = document.createElement('div');
     info.className = 'p-info';
-    const nm = document.createElement('div');
-    nm.className = 'p-name';
+    const nm = document.createElement('div'); nm.className = 'p-name';
     nm.textContent = p.name + (p.isMe ? ' (自分)' : '');
-    const lg = document.createElement('div');
-    lg.className = 'p-lang';
+    const lg = document.createElement('div'); lg.className = 'p-lang';
     lg.textContent = p.lang;
     info.appendChild(nm); info.appendChild(lg);
 
@@ -616,8 +671,8 @@ function showQR() {
   document.getElementById('qr-room-display').textContent = S.roomId;
   document.getElementById('qr-modal').classList.add('open');
 }
-function closeQR() { document.getElementById('qr-modal').classList.remove('open'); }
-function copyId()  { navigator.clipboard.writeText(S.roomId).then(() => toast('ルームIDをコピーしました')); }
+function closeQR()  { document.getElementById('qr-modal').classList.remove('open'); }
+function copyId()   { navigator.clipboard.writeText(S.roomId).then(() => toast('ルームIDをコピーしました')); }
 function copyLink() {
   const url = location.href.split('?')[0] + '?room=' + S.roomId;
   navigator.clipboard.writeText(url).then(() => { toast('リンクをコピーしました'); closeQR(); });
@@ -644,7 +699,9 @@ function startRec() {
   if (S.rec) { try { S.rec.abort(); } catch {} S.rec = null; }
 
   const r = new SR();
-  r.lang = S.speakLang; r.continuous = true; r.interimResults = true;
+  // 母語のBCP47タグで音声認識
+  r.lang = LANG_TO_BCP47[S.lang] || S.lang;
+  r.continuous = true; r.interimResults = true;
   let stopped = false;
 
   r.onstart = () => {
@@ -717,17 +774,16 @@ function animVol() {
 
 // ════════════════════════════════════════════════════════
 //  Send speech
-//  自分の発言はそのままログ表示、サーバーへ転送して他者に翻訳配信
 // ════════════════════════════════════════════════════════
 function sendSpeech(text) {
   const now = Date.now();
   if (text === S.lastSentText && now - S.lastSentTime < 1200) return;
   S.lastSentText = text; S.lastSentTime = now;
 
-  // 自分の発言は原文のままログ表示（翻訳不要）
-  addMsg({ id: S.myId, name: S.myName, lang: lcLang(S.speakLang), original: text, translated: text, isMe: true });
+  // 自分の発言は原文のままログ表示
+  addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: text, translated: text, isMe: true });
 
-  // サーバーへ送信（サーバーが翻訳して他参加者へ配信）
+  // サーバーへ送信（各受信者の母語に翻訳して配信）
   wsSend({ type: 'speech', text });
 }
 
@@ -768,14 +824,14 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
   const card = document.createElement('div');
   card.className = 'msg';
 
-  const meta = document.createElement('div');
-  meta.className = 'msg-meta';
+  const meta = document.createElement('div'); meta.className = 'msg-meta';
   const nm = document.createElement('span'); nm.className = 'msg-name'; nm.style.color = col; nm.textContent = name;
-  const lg = document.createElement('span'); lg.className = 'msg-lang'; lg.textContent = (lang || '').split('-')[0];
+  const lg = document.createElement('span'); lg.className = 'msg-lang'; lg.textContent = lang;
   const tm = document.createElement('span'); tm.className = 'msg-time'; tm.textContent = now;
   meta.appendChild(nm); meta.appendChild(lg); meta.appendChild(tm);
   card.appendChild(meta);
 
+  // 原文と翻訳が異なる場合のみ原文を表示
   if (!isMe && original !== translated) {
     const orig = document.createElement('div');
     orig.className = 'msg-original';
@@ -783,8 +839,7 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
     card.appendChild(orig);
   }
 
-  const tr = document.createElement('div');
-  tr.className = 'msg-translated';
+  const tr = document.createElement('div'); tr.className = 'msg-translated';
   tr.textContent = translated;
   card.appendChild(tr);
 

@@ -806,24 +806,13 @@ function sendSpeech(text) {
 
   // 完全一致の重複は弾く
   if (text === S.lastSentText && now - S.lastSentTime < 1200) return;
-
-  // Web Speech APIが前の認識結果を含めて上書きしてくる問題への対処:
-  // 送信済みテキストで始まる文章は「差分だけ」送る
-  // 例: 送信済み「こんにちは」→ 新着「こんにちはこちらはかずきです」→ 差分「こちらはかずきです」を送信
-  let sendText = text;
-  if (S.lastSentText && text.startsWith(S.lastSentText) && now - S.lastSentTime < 10000) {
-    const diff = text.slice(S.lastSentText.length).trim();
-    if (!diff) return; // 差分なし → 無視
-    sendText = diff;
-  }
-
   S.lastSentText = text; S.lastSentTime = now;
 
   // 自分の発言は原文のままログ表示
-  addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: sendText, translated: sendText, isMe: true });
+  addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: text, translated: text, isMe: true });
 
   // サーバーへ送信（各受信者の母語に翻訳して配信）
-  wsSend({ type: 'speech', text: sendText });
+  wsSend({ type: 'speech', text });
 }
 
 // ════════════════════════════════════════════════════════

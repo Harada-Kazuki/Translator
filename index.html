@@ -254,6 +254,7 @@ input:focus, select:focus { border-color: var(--accent); }
       <span class="conn-badge disconnected" id="conn-badge">● 接続中...</span>
       <div class="room-actions">
         <button class="btn btn-outline btn-sm" onclick="showQR()">QR</button>
+        <button class="btn btn-outline btn-sm" onclick="downloadCSV()" id="btn-csv" title="発言ログをCSVで保存">📥 ログ</button>
         <button class="btn btn-danger btn-sm" onclick="leaveRoom()">退出</button>
       </div>
     </div>
@@ -294,6 +295,27 @@ input:focus, select:focus { border-color: var(--accent); }
           <div class="qr-note">スキャンで即参加</div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Log Modal -->
+<div class="modal-bg" id="log-modal" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:680px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h2>発言ログ</h2>
+      <button class="btn btn-outline btn-sm" onclick="closeLogModal()">閉じる</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input type="text" id="log-search-room" placeholder="ルームID（空欄で全件）"
+             style="flex:1;font-family:monospace;letter-spacing:2px;text-transform:uppercase"
+             oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').toUpperCase()">
+      <button class="btn btn-primary btn-sm" onclick="searchLogs()">検索</button>
+      <button class="btn btn-outline btn-sm" onclick="exportCSV()">CSV</button>
+    </div>
+    <div id="log-status" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
+    <div id="log-feed" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:200px;max-height:55vh;">
+      <div style="text-align:center;color:var(--text-muted);font-size:13px;margin:auto;">ルームIDを入力して検索してください</div>
     </div>
   </div>
 </div>
@@ -368,6 +390,7 @@ const S = {
   msgCount: 0,
   lastSentText: '', lastSentTime: 0,
   feedInitialized: false,
+  log: [], // 発言ログ保存用
 };
 
 const PAL = ['#4f46e5','#0891b2','#16a34a','#ca8a04','#dc2626','#9333ea','#0e7490','#b45309'];
@@ -862,21 +885,148 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
 
   feed.appendChild(card);
   feed.scrollTop = feed.scrollHeight;
+
+  // ログ配列に保存
+  S.log.push({
+    datetime: new Date().toLocaleString('ja-JP'),
+    name,
+    lang,
+    original,
+    translated,
+  });
 }
 
 // ════════════════════════════════════════════════════════
 //  Leave
 // ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
+//  Log viewer
+// ════════════════════════════════════════════════════════
+let cachedLogs = [];
+
+function showLogs() {
+  document.getElementById('log-search-room').value = S.roomId || '';
+  document.getElementById('log-modal').classList.add('open');
+  if (S.roomId) searchLogs();
+}
+
+function closeLogModal() {
+  document.getElementById('log-modal').classList.remove('open');
+}
+
+async function searchLogs() {
+  const roomId = document.getElementById('log-search-room').value.trim();
+  const status = document.getElementById('log-status');
+  const feed   = document.getElementById('log-feed');
+
+  status.textContent = '取得中...';
+  feed.innerHTML = '';
+
+  try {
+    const url = roomId
+      ? `/logs?room=${encodeURIComponent(roomId)}`
+      : `/logs`;
+    const res  = await fetch(url);
+    const logs = await res.json();
+    cachedLogs = logs;
+
+    status.textContent = `${logs.length} 件`;
+
+    if (logs.length === 0) {
+      feed.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:13px;margin:auto;">ログが見つかりません</div>';
+      return;
+    }
+
+    logs.forEach(log => {
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:8px 10px;border-radius:6px;background:var(--bg);border:1px solid var(--border);font-size:13px;';
+
+      const meta = document.createElement('div');
+      meta.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:3px;flex-wrap:wrap;';
+      meta.innerHTML = `
+        <span style="font-weight:600;">${esc(log.speaker)}</span>
+        <span style="font-size:10px;background:var(--border);padding:1px 6px;border-radius:3px;">${esc(log.lang)}</span>
+        <span style="font-size:10px;color:var(--text-muted);">${esc(log.room_id)}</span>
+        <span style="font-size:10px;color:var(--text-muted);margin-left:auto;">${new Date(log.created_at).toLocaleString('ja-JP')}</span>
+      `;
+
+      const orig = document.createElement('div');
+      orig.style.cssText = 'font-size:12px;color:var(--text-muted);font-style:italic;';
+      orig.textContent = log.original;
+
+      const tr = document.createElement('div');
+      tr.textContent = log.translated !== log.original ? log.translated : '';
+      if (!tr.textContent) orig.style.fontStyle = 'normal';
+
+      card.appendChild(meta);
+      card.appendChild(orig);
+      if (tr.textContent) card.appendChild(tr);
+      feed.appendChild(card);
+    });
+  } catch (e) {
+    status.textContent = '取得エラー';
+    feed.innerHTML = '<div style="text-align:center;color:var(--red);font-size:13px;margin:auto;">サーバーに接続できません</div>';
+  }
+}
+
+function exportCSV() {
+  if (!cachedLogs.length) { toast('先に検索してください'); return; }
+  const header = ['日時', 'ルームID', '発言者', '言語', '原文', '翻訳'];
+  const rows = cachedLogs.map(l => [
+    new Date(l.created_at).toLocaleString('ja-JP'),
+    l.room_id, l.speaker, l.lang,
+    l.original, l.translated,
+  ].map(v => `"${String(v).replace(/"/g, '""')}"`));
+  const csv  = [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `kw-log-${Date.now()}.csv`;
+  a.click();
+}
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ログモーダルの背景クリックで閉じる
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('log-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeLogModal();
+  });
+});
+
 async function leaveRoom() {
   stopRec(); stopPing();
   wsSend({ type: 'leave' });
   await new Promise(r => setTimeout(r, 100));
+
+  // ログをCSVダウンロード
+  if (S.log.length > 0) downloadCSV();
+
   S.roomId = null;
   if (S.ws) { S.ws.onclose = null; S.ws.close(); S.ws = null; }
   clearTimeout(S.reconnectTimer);
   clearTimeout(wakeBannerTimer);
   setConnUI('disconnected');
   show('screen-setup');
+}
+
+function downloadCSV() {
+  const escCSV = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const rows = [
+    ['日時', '発言者', '言語', '原文', '翻訳'].map(escCSV).join(','),
+    ...S.log.map(r => [r.datetime, r.name, r.lang, r.original, r.translated].map(escCSV).join(',')),
+  ];
+  const bom  = '﻿'; // ExcelでUTF-8を正しく開くためのBOM
+  const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href     = url;
+  a.download = `kw-translator_${S.roomId}_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 </script>
 </body>

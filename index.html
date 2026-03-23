@@ -38,6 +38,7 @@ header { display: flex; align-items: center; justify-content: space-between; mar
 .screen { display: none; }
 .screen.active { display: block; }
 
+/* ─── Setup ─── */
 .setup-wrap { max-width: 440px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow); }
 .setup-wrap h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
 .setup-desc { font-size: 13px; color: var(--text-sub); margin-bottom: 24px; line-height: 1.6; }
@@ -51,13 +52,18 @@ input[type=text], select {
 }
 input:focus, select:focus { border-color: var(--accent); }
 
+/* 言語セレクト — 検索ボックス付きカスタム */
 .lang-select-wrap { position: relative; }
 .lang-select-wrap select { padding-right: 32px; }
 
+/* 名前 + 言語 横並び */
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 @media (max-width: 400px) { .field-row { grid-template-columns: 1fr; } }
 
-.lang-hint { font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.5; }
+/* 母語ヒント */
+.lang-hint {
+  font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.5;
+}
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 8px; border: 1px solid transparent; font-family: inherit; font-size: 14px; cursor: pointer; transition: all .12s; white-space: nowrap; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -76,6 +82,7 @@ input:focus, select:focus { border-color: var(--accent); }
 .join-row { display: flex; gap: 8px; }
 .join-row input { font-family: 'Roboto Mono', monospace; letter-spacing: 3px; text-transform: uppercase; font-size: 16px; text-align: center; }
 
+/* ─── Room ─── */
 .room-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .room-id-block { display: flex; align-items: center; gap: 4px; }
 .room-id { font-family: 'Roboto Mono', monospace; font-size: 20px; font-weight: 500; letter-spacing: 4px; }
@@ -335,6 +342,8 @@ input:focus, select:focus { border-color: var(--accent); }
 // ════════════════════════════════════════════════════════
 const WS_URL = 'wss://translator-5t9v.onrender.com';
 
+// 言語コード → Web Speech API の BCP47 タグ
+// （音声認識に使う。同じ言語でも複数バリアントある場合は代表を選択）
 const LANG_TO_BCP47 = {
   'ja':    'ja-JP',
   'en':    'en-US',
@@ -373,14 +382,15 @@ const LANG_TO_BCP47 = {
 // ════════════════════════════════════════════════════════
 const S = {
   roomId: null, myId: null, myName: '',
-  lang: 'ja',
+  lang: 'ja',           // 母語コード（話す＆受け取る言語）
   ttsEnabled: true, recording: false, rec: null,
   ws: null, wsReady: false,
   reconnectTimer: null, reconnectCount: 0,
   participants: {}, participantOrder: [],
   msgCount: 0,
+  lastSentText: '', lastSentTime: 0,
   feedInitialized: false,
-  log: [],
+  log: [], // 発言ログ保存用
 };
 
 const PAL = ['#4f46e5','#0891b2','#16a34a','#ca8a04','#dc2626','#9333ea','#0e7490','#b45309'];
@@ -402,9 +412,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   document.getElementById('qr-modal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeQR();
-  });
-  document.getElementById('log-modal').addEventListener('click', e => {
-    if (e.target === e.currentTarget) closeLogModal();
   });
   window.addEventListener('beforeunload', () => {
     wsSend({ type: 'leave' });
@@ -485,7 +492,8 @@ function resetState() {
   if (S.ws) { S.ws.onclose = null; S.ws.close(); S.ws = null; }
   clearTimeout(S.reconnectTimer);
   S.participants = {}; S.participantOrder = [];
-  S.msgCount = 0; S.wsReady = false; S.reconnectCount = 0; S.feedInitialized = false;
+  S.msgCount = 0; S.lastSentText = ''; S.lastSentTime = 0;
+  S.wsReady = false; S.reconnectCount = 0; S.feedInitialized = false;
 }
 
 function enterRoom() {
@@ -538,12 +546,13 @@ function connectWS() {
     document.getElementById('wake-banner').classList.add('hidden');
     setConnUI('connected');
     startPing();
+    // 母語1つだけ送信
     wsSend({
       type:     'join',
       roomId:   S.roomId,
       clientId: S.myId,
       name:     S.myName,
-      lang:     S.lang,
+      lang:     S.lang,   // 'ja', 'en', 'zh-TW' など
     });
   };
 
@@ -619,6 +628,7 @@ function onServerMsg(d) {
         isMe:       false,
       });
       if (S.ttsEnabled && d.translated?.trim()) {
+        // 自分の母語のBCP47タグでTTS
         speak(d.translated, LANG_TO_BCP47[S.lang] || S.lang);
       }
       break;
@@ -712,6 +722,7 @@ function startRec() {
   if (S.rec) { try { S.rec.abort(); } catch {} S.rec = null; }
 
   const r = new SR();
+  // 母語のBCP47タグで音声認識
   r.lang = LANG_TO_BCP47[S.lang] || S.lang;
   r.continuous = true; r.interimResults = true;
   let stopped = false;
@@ -726,36 +737,39 @@ function startRec() {
     renderParticipants();
   };
 
-  // ── isFinal debounce ──────────────────────────────────────────────
-  // Web Speech API は1つの発話を複数の isFinal チャンクに分割することがある。
-  // 例）「今日はいい天気ですね」→ isFinal「今日は」+ isFinal「いい天気ですね」
-  // → DEBOUNCE_MS 以内に追加 isFinal が来たらまとめてから1回だけ送信する。
-  const DEBOUNCE_MS = 600;
-  let pendingFinals = [];
-  let debounceTimer = null;
-
-  function flushPending() {
-    debounceTimer = null;
-    const text = pendingFinals.join('').trim();
-    pendingFinals = [];
-    if (text) sendSpeech(text);
-  }
+  // セッションスコープの重複排除
+  // isFinalはセッション内で累積されることがあるので
+  // 直前に送信した内容を記録して差分だけ送る
+  let sessionLastSent = '';
 
   r.onresult = e => {
-    let interim = '';
+    let interim = '', final = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) {
-        pendingFinals.push(t);
-        // タイマーリセット：追加チャンクが来るたびに延長
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(flushPending, DEBOUNCE_MS);
-      } else {
-        interim += t;
-      }
+      e.results[i].isFinal ? (final += t) : (interim += t);
     }
     document.getElementById('interim').textContent = interim;
-    if (interim) animVol();
+    animVol();
+
+    const text = final.trim();
+    if (!text) return;
+    document.getElementById('interim').textContent = '';
+
+    // 完全一致は重複なので無視
+    if (text === sessionLastSent) return;
+
+    // 直前の送信内容で始まる累積テキスト → 差分だけ抽出
+    if (sessionLastSent && text.startsWith(sessionLastSent)) {
+      const diff = text.slice(sessionLastSent.length).trim();
+      if (!diff) return;
+      sessionLastSent = text;
+      sendSpeech(diff);
+      return;
+    }
+
+    // 通常送信
+    sessionLastSent = text;
+    sendSpeech(text);
   };
 
   r.onerror = e => {
@@ -765,11 +779,6 @@ function startRec() {
   };
 
   r.onend = () => {
-    // セッション終了時に pending を即フラッシュ
-    if (pendingFinals.length) {
-      clearTimeout(debounceTimer);
-      flushPending();
-    }
     if (!stopped && S.recording && S.rec === r) {
       try { r.start(); } catch { stopRec(); }
     }
@@ -812,7 +821,9 @@ function animVol() {
 // ════════════════════════════════════════════════════════
 function sendSpeech(text) {
   if (!text) return;
+  // 自分の発言は原文のままログ表示
   addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: text, translated: text, isMe: true });
+  // サーバーへ送信（各受信者の母語に翻訳して配信）
   wsSend({ type: 'speech', text });
 }
 
@@ -860,6 +871,7 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
   meta.appendChild(nm); meta.appendChild(lg); meta.appendChild(tm);
   card.appendChild(meta);
 
+  // 原文と翻訳が異なる場合のみ原文を表示
   if (!isMe && original !== translated) {
     const orig = document.createElement('div');
     orig.className = 'msg-original';
@@ -874,14 +886,21 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
   feed.appendChild(card);
   feed.scrollTop = feed.scrollHeight;
 
+  // ログ配列に保存
   S.log.push({
     datetime: new Date().toLocaleString('ja-JP'),
-    name, lang, original, translated,
+    name,
+    lang,
+    original,
+    translated,
   });
 }
 
 // ════════════════════════════════════════════════════════
-//  Leave / Log / CSV
+//  Leave
+// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
+//  Log viewer
 // ════════════════════════════════════════════════════════
 let cachedLogs = [];
 
@@ -904,7 +923,9 @@ async function searchLogs() {
   feed.innerHTML = '';
 
   try {
-    const url = roomId ? `/logs?room=${encodeURIComponent(roomId)}` : `/logs`;
+    const url = roomId
+      ? `/logs?room=${encodeURIComponent(roomId)}`
+      : `/logs`;
     const res  = await fetch(url);
     const logs = await res.json();
     cachedLogs = logs;
@@ -968,11 +989,19 @@ function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ログモーダルの背景クリックで閉じる
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('log-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeLogModal();
+  });
+});
+
 async function leaveRoom() {
   stopRec(); stopPing();
   wsSend({ type: 'leave' });
   await new Promise(r => setTimeout(r, 100));
 
+  // ログをCSVダウンロード
   if (S.log.length > 0) downloadCSV();
 
   S.roomId = null;
@@ -989,7 +1018,7 @@ function downloadCSV() {
     ['日時', '発言者', '言語', '原文', '翻訳'].map(escCSV).join(','),
     ...S.log.map(r => [r.datetime, r.name, r.lang, r.original, r.translated].map(escCSV).join(',')),
   ];
-  const bom  = '\uFEFF';
+  const bom  = '﻿'; // ExcelでUTF-8を正しく開くためのBOM
   const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');

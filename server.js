@@ -14,12 +14,68 @@ const fs    = require('fs');
 const path  = require('path');
 const https = require('https');
 
-const PORT           = process.env.PORT || 3000;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const MODEL_NAME     = 'gemini-3.1-flash-lite-preview';
-const GEMINI_URL     = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
+const PORT             = process.env.PORT || 3000;
+const GEMINI_API_KEY   = process.env.GEMINI_API_KEY || '';
+const MODEL_NAME       = 'gemini-3.1-flash-lite-preview';
+const GEMINI_URL       = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
+const SUPABASE_URL     = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY     = process.env.SUPABASE_SERVICE_KEY || '';
 
 const MAX_MSG_BYTES = 8192;
+
+// ── Supabase ログ保存 ─────────────────────────────────────────
+async function saveLog({ roomId, speaker, lang, original, translated }) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  const url  = `${SUPABASE_URL}/rest/v1/logs`;
+  const body = JSON.stringify({ room_id: roomId, speaker, lang, original, translated });
+  const req  = https.request(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'apikey':        SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Prefer':        'return=minimal',
+      'Content-Length': Buffer.byteLength(body),
+    },
+  }, (res) => {
+    if (res.statusCode >= 300) {
+      let raw = '';
+      res.on('data', c => { raw += c; });
+      res.on('end', () => console.error('[supabase] save error:', res.statusCode, raw.slice(0, 200)));
+    }
+  });
+  req.on('error', e => console.error('[supabase] request error:', e.message));
+  req.write(body);
+  req.end();
+}
+
+// ── Supabase ログ取得（ルームID or 全件） ────────────────────────
+async function fetchLogs(roomId) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return [];
+  const query = roomId
+    ? `room_id=eq.${encodeURIComponent(roomId)}&order=created_at.asc&limit=500`
+    : `order=created_at.desc&limit=500`;
+  const url = `${SUPABASE_URL}/rest/v1/logs?${query}`;
+  return new Promise((resolve) => {
+    const req = https.request(url, {
+      method: 'GET',
+      headers: {
+        'apikey':        SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Accept':        'application/json',
+      },
+    }, (res) => {
+      let raw = '';
+      res.on('data', c => { raw += c; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(raw)); }
+        catch { console.error('[supabase] parse error:', raw.slice(0, 200)); resolve([]); }
+      });
+    });
+    req.on('error', e => { console.error('[supabase] fetch error:', e.message); resolve([]); });
+    req.end();
+  });
+}
 
 // ── HTTP ──────────────────────────────────────────────────────
 const httpServer = http.createServer((req, res) => {
@@ -31,7 +87,24 @@ const httpServer = http.createServer((req, res) => {
       connections: totalConnections(),
       uptime: Math.floor(process.uptime()),
       gemini: !!GEMINI_API_KEY,
+      supabase: !!(SUPABASE_URL && SUPABASE_KEY),
     }));
+    return;
+  }
+
+  // ログ取得API: GET /logs?room=XXXX
+  if (req.url.startsWith('/logs')) {
+    const qs     = new URL(req.url, 'http://localhost').searchParams;
+    const roomId = qs.get('room') || '';
+    fetchLogs(roomId).then(logs => {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify(logs));
+    }).catch(() => {
+      res.writeHead(500); res.end('[]');
+    });
     return;
   }
 
@@ -215,7 +288,7 @@ function cacheSet(text, fromLang, toLang, value) {
  * - 同じ翻訳先言語はキャッシュして1回だけAPIを叩く
  * - 短すぎるテキスト（2文字以下）はスキップ
  */
-async function handleSpeech(room, senderId, text) {
+async function handleSpeech(room, senderId, text, currentRoomId) {
   const sender = room.get(senderId);
   if (!sender) return;
 
@@ -254,7 +327,8 @@ async function handleSpeech(room, senderId, text) {
     cache[toLang] = translated;
   }));
 
-  // 各クライアントに個別送信
+  // 各クライアントに個別送信 & ログ保存（言語ごとに1レコード）
+  const savedLangs = new Set();
   for (const [id, client] of room) {
     if (id === senderId) continue;
     if (client.ws.readyState !== WebSocket.OPEN) continue;
@@ -269,7 +343,28 @@ async function handleSpeech(room, senderId, text) {
       original:   text,
       translated,
     }));
+
+    // 同じ翻訳先言語は1回だけ保存
+    if (!savedLangs.has(client.lang)) {
+      savedLangs.add(client.lang);
+      saveLog({
+        roomId:     currentRoomId,
+        speaker:    sender.name,
+        lang:       fromLang,
+        original:   text,
+        translated,
+      }).catch(e => console.error('[supabase] saveLog error:', e));
+    }
   }
+
+  // 送信者自身のログも保存（原文のまま）
+  saveLog({
+    roomId:     currentRoomId,
+    speaker:    sender.name,
+    lang:       fromLang,
+    original:   text,
+    translated: text,
+  }).catch(e => console.error('[supabase] saveLog error:', e));
 }
 
 // ── 接続処理 ───────────────────────────────────────────────────
@@ -351,7 +446,7 @@ wss.on('connection', (ws) => {
         const text = String(msg.text || '').slice(0, 500);
         if (!text) return;
 
-        handleSpeech(room, currentClientId, text).catch(err => {
+        handleSpeech(room, currentClientId, text, currentRoomId).catch(err => {
           console.error('[handleSpeech]', err);
         });
         break;

@@ -178,7 +178,7 @@ input:focus, select:focus { border-color: var(--accent); }
     <div class="setup-wrap">
       <h1>会議に参加する</h1>
       <p class="setup-desc">
-        母語を選ぶだけでOK。相手が何語で話しても自動で翻訳します。
+        母国語を選んで、ルームを作成するか、QRコードやルームコードで既存のルームに参加してください。
       </p>
 
       <div class="field-row">
@@ -187,7 +187,7 @@ input:focus, select:focus { border-color: var(--accent); }
           <input type="text" id="input-name" placeholder="例：原田 一希" maxlength="20" autocomplete="nickname">
         </div>
         <div class="field">
-          <label>母語（話す＆聞く言語）</label>
+          <label>母国語</label>
           <div class="lang-select-wrap">
             <select id="input-lang">
               <option value="ja">🇯🇵 日本語</option>
@@ -222,7 +222,7 @@ input:focus, select:focus { border-color: var(--accent); }
               <option value="fi">🇫🇮 Suomi</option>
             </select>
           </div>
-          <div class="lang-hint">この言語で話し、この言語に翻訳して受け取ります</div>
+          <div class="lang-hint">この言語を使用します。</div>
         </div>
       </div>
 
@@ -292,7 +292,7 @@ input:focus, select:focus { border-color: var(--accent); }
         <div class="panel">
           <div class="panel-title">招待 QR</div>
           <div class="qr-wrap" id="qr-side-wrap"></div>
-          <div class="qr-note">スキャンで即参加</div>
+          <div class="qr-note">スキャンして参加</div>
         </div>
       </div>
     </div>

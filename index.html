@@ -8,7 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-/* ─── Reset & Base ─────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --bg: #f8f8f6;
@@ -25,20 +24,10 @@
   --radius: 10px;
   --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
 }
-body {
-  font-family: 'Noto Sans JP', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  min-height: 100dvh;
-}
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh; }
 
-/* ─── Layout ───────────────────────────────────────────── */
 .app { max-width: 860px; margin: 0 auto; padding: 20px 16px 80px; }
-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
-}
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
 .logo { font-size: 17px; font-weight: 600; letter-spacing: .5px; }
 .logo-sub { font-size: 11px; color: var(--text-sub); margin-left: 6px; font-weight: 400; }
 .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); }
@@ -46,40 +35,20 @@ header {
 .dot.live { background: var(--green); }
 .dot.warn { background: var(--yellow); }
 
-/* ─── Screens ──────────────────────────────────────────── */
 .screen { display: none; }
 .screen.active { display: block; }
 
-/* ─── Setup ────────────────────────────────────────────── */
-.setup-wrap {
-  max-width: 420px; margin: 0 auto;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 28px 24px;
-  box-shadow: var(--shadow);
-}
+.setup-wrap { max-width: 420px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow); }
 .setup-wrap h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
 .setup-wrap > p { font-size: 13px; color: var(--text-sub); margin-bottom: 24px; line-height: 1.6; }
 .field { margin-bottom: 14px; }
 label { font-size: 12px; color: var(--text-sub); display: block; margin-bottom: 5px; font-weight: 500; }
-input[type=text], select {
-  width: 100%; padding: 10px 12px;
-  border: 1px solid var(--border); border-radius: 8px;
-  font-family: inherit; font-size: 14px; color: var(--text);
-  background: var(--surface); outline: none;
-  transition: border-color .15s;
-  -webkit-appearance: none;
-}
+input[type=text], select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--text); background: var(--surface); outline: none; transition: border-color .15s; -webkit-appearance: none; }
 input:focus, select:focus { border-color: var(--accent); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 @media (max-width: 400px) { .field-row { grid-template-columns: 1fr; } }
 
-/* ─── Buttons ──────────────────────────────────────────── */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px; padding: 10px 18px; border-radius: 8px;
-  border: 1px solid transparent; font-family: inherit;
-  font-size: 14px; cursor: pointer; transition: all .12s; white-space: nowrap;
-}
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 8px; border: 1px solid transparent; font-family: inherit; font-size: 14px; cursor: pointer; transition: all .12s; white-space: nowrap; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-primary:hover:not(:disabled) { background: #333; }
@@ -94,33 +63,15 @@ input:focus, select:focus { border-color: var(--accent); }
 .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 .join-row { display: flex; gap: 8px; }
-.join-row input {
-  font-family: 'Roboto Mono', monospace; letter-spacing: 3px;
-  text-transform: uppercase; font-size: 16px; text-align: center;
-}
+.join-row input { font-family: 'Roboto Mono', monospace; letter-spacing: 3px; text-transform: uppercase; font-size: 16px; text-align: center; }
 
-/* ─── Room ─────────────────────────────────────────────── */
-.room-header {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 16px; flex-wrap: wrap;
-}
+.room-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .room-id-block { display: flex; align-items: center; gap: 4px; }
-.room-id {
-  font-family: 'Roboto Mono', monospace; font-size: 20px;
-  font-weight: 500; letter-spacing: 4px;
-}
+.room-id { font-family: 'Roboto Mono', monospace; font-size: 20px; font-weight: 500; letter-spacing: 4px; }
 .room-id-label { font-size: 11px; color: var(--text-sub); }
-.icon-btn {
-  background: none; border: none; cursor: pointer;
-  color: var(--text-muted); font-size: 16px; padding: 3px 5px;
-  border-radius: 4px; transition: all .12s;
-}
+.icon-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 3px 5px; border-radius: 4px; transition: all .12s; }
 .icon-btn:hover { color: var(--text); background: var(--border); }
-.conn-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; padding: 3px 9px; border-radius: 20px;
-  border: 1px solid transparent;
-}
+.conn-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; border: 1px solid transparent; }
 .conn-badge.connected { background: #f0fdf4; color: var(--green); border-color: #bbf7d0; }
 .conn-badge.connecting { background: #fefce8; color: var(--yellow); border-color: #fde68a; }
 .conn-badge.disconnected { background: #fafafa; color: var(--text-sub); border-color: var(--border); }
@@ -129,74 +80,39 @@ input:focus, select:focus { border-color: var(--accent); }
 .room-layout { display: grid; grid-template-columns: 1fr 210px; gap: 12px; }
 @media (max-width: 620px) { .room-layout { grid-template-columns: 1fr; } }
 
-/* ─── Transcript ───────────────────────────────────────── */
-.transcript-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); overflow: hidden;
-  display: flex; flex-direction: column; height: 400px;
-  box-shadow: var(--shadow);
-}
-.transcript-head {
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 12px; color: var(--text-sub); background: var(--bg);
-}
-.transcript-feed {
-  flex: 1; overflow-y: auto; padding: 12px;
-  display: flex; flex-direction: column; gap: 8px;
-}
+.transcript-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; height: 400px; box-shadow: var(--shadow); }
+.transcript-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-sub); background: var(--bg); }
+.transcript-feed { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .transcript-feed::-webkit-scrollbar { width: 3px; }
 .transcript-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .empty-hint { text-align: center; color: var(--text-muted); font-size: 13px; margin: auto; padding: 40px 0; }
-.msg {
-  padding: 10px 12px; border-radius: 8px;
-  background: var(--bg); border: 1px solid var(--border);
-  animation: fadein .2s ease;
-}
+.msg { padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); animation: fadein .2s ease; }
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
 .msg-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
 .msg-name { font-size: 12px; font-weight: 600; }
-.msg-lang {
-  font-size: 10px; color: var(--text-sub); background: var(--border);
-  padding: 1px 6px; border-radius: 3px;
-}
+.msg-lang { font-size: 10px; color: var(--text-sub); background: var(--border); padding: 1px 6px; border-radius: 3px; }
 .msg-time { font-size: 11px; color: var(--text-muted); margin-left: auto; }
 .msg-original { font-size: 12px; color: var(--text-muted); margin-bottom: 3px; font-style: italic; }
 .msg-translated { font-size: 14px; line-height: 1.55; }
 
-/* ─── Mic ──────────────────────────────────────────────── */
+/* 翻訳中インジケータ */
+.msg-translating { font-size: 13px; color: var(--text-muted); font-style: italic; }
+@keyframes blink { 0%,100%{opacity:.3} 50%{opacity:1} }
+.msg-translating::after { content: '...'; animation: blink 1s infinite; }
+
 .mic-section { margin-top: 10px; }
-.mic-btn {
-  width: 100%; padding: 13px; border: 1px solid var(--border);
-  border-radius: 8px; background: var(--surface); font-family: inherit;
-  font-size: 14px; cursor: pointer; display: flex; align-items: center;
-  justify-content: center; gap: 8px; transition: all .15s;
-  box-shadow: var(--shadow);
-}
+.mic-btn { width: 100%; padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-family: inherit; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all .15s; box-shadow: var(--shadow); }
 .mic-btn:hover { border-color: var(--border-strong); }
-.mic-btn.recording {
-  border-color: var(--red); color: var(--red);
-  background: #fff8f8; box-shadow: 0 0 0 3px rgba(220,38,38,.08);
-}
+.mic-btn.recording { border-color: var(--red); color: var(--red); background: #fff8f8; box-shadow: 0 0 0 3px rgba(220,38,38,.08); }
 .vol-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
 .vol-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width .1s; width: 0%; }
 .interim { font-size: 12px; color: var(--text-muted); margin-top: 6px; min-height: 16px; line-height: 1.4; }
 .tts-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 13px; color: var(--text-sub); }
-.toggle {
-  width: 34px; height: 18px; background: var(--border-strong);
-  border-radius: 9px; cursor: pointer; position: relative;
-  transition: background .2s; flex-shrink: 0;
-}
+.toggle { width: 34px; height: 18px; background: var(--border-strong); border-radius: 9px; cursor: pointer; position: relative; transition: background .2s; flex-shrink: 0; }
 .toggle.on { background: var(--green); }
-.toggle::after {
-  content: ''; position: absolute; top: 2px; left: 2px;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: #fff; transition: transform .2s;
-  box-shadow: 0 1px 2px rgba(0,0,0,.2);
-}
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
 .toggle.on::after { transform: translateX(16px); }
 
-/* ─── Sidebar ──────────────────────────────────────────── */
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
 .panel-title { font-size: 10px; color: var(--text-muted); letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 10px; font-weight: 600; }
@@ -212,15 +128,9 @@ input:focus, select:focus { border-color: var(--accent); }
 .qr-wrap img { display: block; margin: 0 auto; image-rendering: pixelated; border-radius: 4px; }
 .qr-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
-/* ─── Wake Banner ─────────────────────────────────────── */
-.wake-banner {
-  background: #fefce8; border: 1px solid #fde68a; border-radius: 8px;
-  padding: 10px 14px; font-size: 12px; color: var(--yellow);
-  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
-}
+.wake-banner { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--yellow); display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .wake-banner.hidden { display: none; }
 
-/* ─── Modal ────────────────────────────────────────────── */
 .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 50; align-items: center; justify-content: center; }
 .modal-bg.open { display: flex; }
 .modal { background: var(--surface); border-radius: var(--radius); padding: 24px; max-width: 320px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,.12); }
@@ -230,13 +140,8 @@ input:focus, select:focus { border-color: var(--accent); }
 .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
 .modal-actions .btn { flex: 1; }
 
-/* ─── Toast ────────────────────────────────────────────── */
 .toast-wrap { position: fixed; bottom: 20px; right: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 100; }
-.toast {
-  background: #1a1a1a; color: #fff; padding: 9px 14px;
-  border-radius: 8px; font-size: 13px; max-width: 260px;
-  animation: tin .2s ease; box-shadow: 0 4px 12px rgba(0,0,0,.2);
-}
+.toast { background: #1a1a1a; color: #fff; padding: 9px 14px; border-radius: 8px; font-size: 13px; max-width: 260px; animation: tin .2s ease; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
 .toast.warn { background: #7c2d12; }
 .toast.ok { background: #14532d; }
 @keyframes tin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
@@ -255,7 +160,7 @@ input:focus, select:focus { border-color: var(--accent); }
     </div>
   </header>
 
-  <!-- ── SETUP ── -->
+  <!-- SETUP -->
   <div class="screen active" id="screen-setup">
     <div class="setup-wrap">
       <h1>会議に参加する</h1>
@@ -298,9 +203,7 @@ input:focus, select:focus { border-color: var(--accent); }
         </select>
       </div>
 
-      <button class="btn btn-primary btn-full" id="btn-create" onclick="createRoom()">
-        ルームを作成
-      </button>
+      <button class="btn btn-primary btn-full" onclick="createRoom()">ルームを作成</button>
 
       <div class="divider">または</div>
 
@@ -309,13 +212,11 @@ input:focus, select:focus { border-color: var(--accent); }
                oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').toUpperCase()">
         <button class="btn btn-outline" onclick="joinRoom()">参加</button>
       </div>
-      <p style="font-size:11px;color:var(--text-muted);margin-top:8px">
-        QRスキャンでIDが自動入力されます
-      </p>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:8px">QRスキャンでIDが自動入力されます</p>
     </div>
   </div>
 
-  <!-- ── ROOM ── -->
+  <!-- ROOM -->
   <div class="screen" id="screen-room">
     <div class="wake-banner hidden" id="wake-banner">
       サーバーを起動中です。初回接続に数秒かかる場合があります...
@@ -354,9 +255,7 @@ input:focus, select:focus { border-color: var(--accent); }
           <div class="interim" id="interim"></div>
           <div class="tts-row">
             <span>翻訳を音声で読み上げ</span>
-            <div class="toggle on" id="tts-room"
-                 onclick="toggleTTS()"
-                 role="switch" aria-checked="true" tabindex="0"></div>
+            <div class="toggle on" id="tts-room" onclick="toggleTTS()" role="switch" aria-checked="true" tabindex="0"></div>
           </div>
         </div>
       </div>
@@ -377,7 +276,7 @@ input:focus, select:focus { border-color: var(--accent); }
 </div>
 
 <!-- QR Modal -->
-<div class="modal-bg" id="qr-modal" role="dialog" aria-modal="true" aria-label="招待QR">
+<div class="modal-bg" id="qr-modal" role="dialog" aria-modal="true">
   <div class="modal">
     <h2>QRコードで招待</h2>
     <p style="font-size:12px;color:var(--text-sub)">スキャンするとすぐに参加できます</p>
@@ -402,31 +301,22 @@ const WS_URL = 'wss://translator-5t9v.onrender.com';
 //  State
 // ════════════════════════════════════════════════════════
 const S = {
-  roomId: null,
-  myId: null,
-  myName: '',
-  speakLang: 'ja-JP',
-  receiveLang: 'ja',
-  ttsEnabled: true,
-  recording: false,
-  rec: null,
-  ws: null,
-  wsReady: false,
-  reconnectTimer: null,
-  reconnectCount: 0,
-  participants: {},
-  participantOrder: [],
+  roomId: null, myId: null, myName: '',
+  speakLang: 'ja-JP', receiveLang: 'ja',
+  ttsEnabled: true, recording: false, rec: null,
+  ws: null, wsReady: false,
+  reconnectTimer: null, reconnectCount: 0,
+  participants: {}, participantOrder: [],
   msgCount: 0,
-  lastSentText: '',
-  lastSentTime: 0,
+  lastSentText: '', lastSentTime: 0,
   feedInitialized: false,
 };
 
 const PAL = ['#4f46e5','#0891b2','#16a34a','#ca8a04','#dc2626','#9333ea','#0e7490','#b45309'];
-const pCol = i => PAL[i % PAL.length];
+const pCol  = i => PAL[i % PAL.length];
 const lcLang = bcp => (bcp || '').split('-')[0];
 const randId = n => Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0, n).padEnd(n, 'A');
-const uid = () => Math.random().toString(36).slice(2, 12);
+const uid    = () => Math.random().toString(36).slice(2, 12);
 
 // ════════════════════════════════════════════════════════
 //  Init
@@ -440,13 +330,11 @@ window.addEventListener('DOMContentLoaded', () => {
       toast('ルーム ' + safe + ' のリンクを検出しました');
     }
   }
-
   document.getElementById('qr-modal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeQR();
   });
-
   window.addEventListener('beforeunload', () => {
-    wsSend({ type: 'leave', clientId: S.myId });
+    wsSend({ type: 'leave' });
     stopRec();
     S.ws?.close();
   });
@@ -469,27 +357,19 @@ function show(id) {
   document.getElementById(id).classList.add('active');
 }
 
-// ── [修正3] setConnUI から wakeBannerTimer 依存を除去 ──
-// バナー制御は connectWS / onopen のみが責任を持つ
 function setConnUI(state) {
   const dot   = document.getElementById('conn-dot');
   const label = document.getElementById('conn-label');
   const badge = document.getElementById('conn-badge');
   if (state === 'connected') {
-    dot.className = 'dot live';
-    label.textContent = '接続中';
-    badge.className = 'conn-badge connected';
-    badge.textContent = '● 接続済み';
+    dot.className = 'dot live'; label.textContent = '接続中';
+    badge.className = 'conn-badge connected'; badge.textContent = '● 接続済み';
   } else if (state === 'connecting') {
-    dot.className = 'dot warn';
-    label.textContent = '接続中...';
-    badge.className = 'conn-badge connecting';
-    badge.textContent = '◌ 接続中...';
+    dot.className = 'dot warn'; label.textContent = '接続中...';
+    badge.className = 'conn-badge connecting'; badge.textContent = '◌ 接続中...';
   } else {
-    dot.className = 'dot';
-    label.textContent = '未接続';
-    badge.className = 'conn-badge disconnected';
-    badge.textContent = '○ 未接続';
+    dot.className = 'dot'; label.textContent = '未接続';
+    badge.className = 'conn-badge disconnected'; badge.textContent = '○ 未接続';
   }
 }
 
@@ -505,8 +385,8 @@ function toggleTTS() {
 // ════════════════════════════════════════════════════════
 function readSetup() {
   return {
-    name: document.getElementById('input-name').value.trim() || '匿名',
-    speakLang: document.getElementById('input-speak-lang').value,
+    name:        document.getElementById('input-name').value.trim() || '匿名',
+    speakLang:   document.getElementById('input-speak-lang').value,
     receiveLang: document.getElementById('input-receive-lang').value,
   };
 }
@@ -519,8 +399,8 @@ function createRoom() {
 }
 
 function joinRoom() {
-  const raw = document.getElementById('input-room-id').value;
-  const rid = raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const rid = document.getElementById('input-room-id').value
+    .replace(/[^A-Za-z0-9]/g, '').toUpperCase();
   if (rid.length < 2) { toast('ルームIDを入力してください'); return; }
   const { name, speakLang, receiveLang } = readSetup();
   resetState();
@@ -532,14 +412,9 @@ function resetState() {
   stopRec();
   if (S.ws) { S.ws.onclose = null; S.ws.close(); S.ws = null; }
   clearTimeout(S.reconnectTimer);
-  S.participants = {};
-  S.participantOrder = [];
-  S.msgCount = 0;
-  S.lastSentText = '';
-  S.lastSentTime = 0;
-  S.wsReady = false;
-  S.reconnectCount = 0;
-  S.feedInitialized = false;
+  S.participants = {}; S.participantOrder = [];
+  S.msgCount = 0; S.lastSentText = ''; S.lastSentTime = 0;
+  S.wsReady = false; S.reconnectCount = 0; S.feedInitialized = false;
 }
 
 function enterRoom() {
@@ -575,42 +450,31 @@ function startPing() {
     }
   }, 25000);
 }
-
-function stopPing() {
-  clearInterval(pingTimer);
-  pingTimer = null;
-}
+function stopPing() { clearInterval(pingTimer); pingTimer = null; }
 
 function connectWS() {
   clearTimeout(wakeBannerTimer);
-  // 3秒後もまだ未接続ならバナーを表示
   wakeBannerTimer = setTimeout(() => {
-    if (!S.wsReady) {
-      document.getElementById('wake-banner').classList.remove('hidden');
-    }
+    if (!S.wsReady) document.getElementById('wake-banner').classList.remove('hidden');
   }, 3000);
 
-  try {
-    S.ws = new WebSocket(WS_URL);
-  } catch (e) {
-    toast('WebSocket接続エラー: ' + e.message, 'warn');
-    return;
-  }
+  try { S.ws = new WebSocket(WS_URL); }
+  catch (e) { toast('WebSocket接続エラー: ' + e.message, 'warn'); return; }
 
   S.ws.onopen = () => {
-    S.wsReady = true;
-    S.reconnectCount = 0;
-    // ── [修正3] バナー制御を onopen に集約 ──
+    S.wsReady = true; S.reconnectCount = 0;
     clearTimeout(wakeBannerTimer);
     document.getElementById('wake-banner').classList.add('hidden');
     setConnUI('connected');
     startPing();
+    // ← receiveLang を join 時に送信するように変更
     wsSend({
       type: 'join',
-      roomId: S.roomId,
-      clientId: S.myId,
-      name: S.myName,
-      lang: lcLang(S.speakLang),
+      roomId:      S.roomId,
+      clientId:    S.myId,
+      name:        S.myName,
+      lang:        lcLang(S.speakLang),
+      receiveLang: S.receiveLang,
     });
   };
 
@@ -619,14 +483,11 @@ function connectWS() {
       const msg = JSON.parse(data);
       if (msg.type === 'pong') return;
       onServerMsg(msg);
-    } catch (e) {
-      console.error('WS parse error:', e);
-    }
+    } catch (e) { console.error('WS parse error:', e); }
   };
 
   S.ws.onclose = () => {
-    S.wsReady = false;
-    stopPing();
+    S.wsReady = false; stopPing();
     if (!S.roomId) return;
     setConnUI('connecting');
     const delay = WS_RECONNECT_DELAYS[Math.min(S.reconnectCount, WS_RECONNECT_DELAYS.length - 1)];
@@ -639,9 +500,7 @@ function connectWS() {
 }
 
 function wsSend(data) {
-  if (S.ws && S.ws.readyState === WebSocket.OPEN) {
-    S.ws.send(JSON.stringify(data));
-  }
+  if (S.ws && S.ws.readyState === WebSocket.OPEN) S.ws.send(JSON.stringify(data));
 }
 
 // ════════════════════════════════════════════════════════
@@ -649,10 +508,9 @@ function wsSend(data) {
 // ════════════════════════════════════════════════════════
 function onServerMsg(d) {
   if (!d || !d.type) return;
-
   switch (d.type) {
 
-    case 'room_state': {
+    case 'room_state':
       (d.participants || []).forEach(p => {
         if (!S.participants[p.id]) {
           S.participants[p.id] = { name: p.name, lang: p.lang, speaking: false };
@@ -661,9 +519,8 @@ function onServerMsg(d) {
       });
       renderParticipants();
       break;
-    }
 
-    case 'join': {
+    case 'join':
       if (!S.participants[d.clientId]) {
         S.participants[d.clientId] = { name: d.name, lang: d.lang, speaking: false };
         S.participantOrder.push(d.clientId);
@@ -671,7 +528,6 @@ function onServerMsg(d) {
       }
       toast(d.name + ' が参加しました', 'ok');
       break;
-    }
 
     case 'leave': {
       const p = S.participants[d.clientId];
@@ -684,18 +540,25 @@ function onServerMsg(d) {
       break;
     }
 
-    case 'speech': {
-      handleSpeech(d);
+    // ← サーバーが翻訳済み original + translated を両方送ってくる
+    case 'speech':
+      addMsg({
+        id:         d.clientId,
+        name:       d.name,
+        lang:       d.lang,
+        original:   d.original,
+        translated: d.translated,
+        isMe:       false,
+      });
+      if (S.ttsEnabled && d.translated?.trim()) speak(d.translated, S.receiveLang);
       break;
-    }
 
-    case 'speaking': {
+    case 'speaking':
       if (S.participants[d.clientId]) {
         S.participants[d.clientId].speaking = !!d.active;
         renderParticipants();
       }
       break;
-    }
   }
 }
 
@@ -708,7 +571,7 @@ function renderParticipants() {
   S.participantOrder.forEach((id, i) => {
     const p = S.participants[id];
     if (!p) return;
-    const col = pCol(i);
+    const col  = pCol(i);
     const wrap = document.createElement('div');
     wrap.className = 'participant';
 
@@ -725,15 +588,12 @@ function renderParticipants() {
     const lg = document.createElement('div');
     lg.className = 'p-lang';
     lg.textContent = p.lang;
-    info.appendChild(nm);
-    info.appendChild(lg);
+    info.appendChild(nm); info.appendChild(lg);
 
     const spk = document.createElement('div');
     spk.className = 'p-speaking' + (p.speaking ? ' active' : '');
 
-    wrap.appendChild(av);
-    wrap.appendChild(info);
-    wrap.appendChild(spk);
+    wrap.appendChild(av); wrap.appendChild(info); wrap.appendChild(spk);
     el.appendChild(wrap);
   });
 }
@@ -745,14 +605,7 @@ function renderQR(wrapId, text, sizePx) {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
   wrap.innerHTML = '';
-  new QRCode(wrap, {
-    text,
-    width: sizePx,
-    height: sizePx,
-    colorDark: '#1a1a1a',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.M,
-  });
+  new QRCode(wrap, { text, width: sizePx, height: sizePx, colorDark: '#1a1a1a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
   const child = wrap.firstChild;
   if (child) child.style.cssText = 'display:block;margin:0 auto;border-radius:4px';
 }
@@ -764,9 +617,7 @@ function showQR() {
   document.getElementById('qr-modal').classList.add('open');
 }
 function closeQR() { document.getElementById('qr-modal').classList.remove('open'); }
-function copyId() {
-  navigator.clipboard.writeText(S.roomId).then(() => toast('ルームIDをコピーしました'));
-}
+function copyId()  { navigator.clipboard.writeText(S.roomId).then(() => toast('ルームIDをコピーしました')); }
 function copyLink() {
   const url = location.href.split('?')[0] + '?room=' + S.roomId;
   navigator.clipboard.writeText(url).then(() => { toast('リンクをコピーしました'); closeQR(); });
@@ -779,8 +630,7 @@ let ttsPrimed = false;
 function primeTTS() {
   if (ttsPrimed) return;
   ttsPrimed = true;
-  const u = new SpeechSynthesisUtterance('');
-  u.volume = 0;
+  const u = new SpeechSynthesisUtterance(''); u.volume = 0;
   speechSynthesis.speak(u);
 }
 
@@ -789,17 +639,12 @@ function toggleMic() { S.recording ? stopRec() : startRec(); }
 function startRec() {
   if (!S.wsReady) { toast('まだ接続中です。しばらくお待ちください', 'warn'); return; }
   primeTTS();
-
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { toast('このブラウザは音声認識非対応（Chrome推奨）', 'warn'); return; }
-
   if (S.rec) { try { S.rec.abort(); } catch {} S.rec = null; }
 
   const r = new SR();
-  r.lang = S.speakLang;
-  r.continuous = true;
-  r.interimResults = true;
-
+  r.lang = S.speakLang; r.continuous = true; r.interimResults = true;
   let stopped = false;
 
   r.onstart = () => {
@@ -829,11 +674,9 @@ function startRec() {
   r.onerror = e => {
     if (e.error === 'aborted') return;
     toast('音声認識エラー: ' + e.error, 'warn');
-    stopped = true;
-    stopRec();
+    stopped = true; stopRec();
   };
 
-  // ── [修正4] S.rec === r のチェックを追加してゾンビ再起動を防止 ──
   r.onend = () => {
     if (!stopped && S.recording && S.rec === r) {
       try { r.start(); } catch { stopRec(); }
@@ -847,11 +690,7 @@ function startRec() {
 
 function stopRec() {
   S.recording = false;
-  if (S.rec) {
-    S.rec._stop?.();
-    try { S.rec.abort(); } catch {}
-    S.rec = null;
-  }
+  if (S.rec) { S.rec._stop?.(); try { S.rec.abort(); } catch {} S.rec = null; }
   document.getElementById('mic-btn')?.classList.remove('recording');
   const iconEl  = document.getElementById('mic-icon');
   const labelEl = document.getElementById('mic-label');
@@ -877,66 +716,19 @@ function animVol() {
 }
 
 // ════════════════════════════════════════════════════════
-//  Send speech to server
+//  Send speech
+//  自分の発言はそのままログ表示、サーバーへ転送して他者に翻訳配信
 // ════════════════════════════════════════════════════════
 function sendSpeech(text) {
   const now = Date.now();
   if (text === S.lastSentText && now - S.lastSentTime < 1200) return;
-  S.lastSentText = text;
-  S.lastSentTime = now;
+  S.lastSentText = text; S.lastSentTime = now;
 
+  // 自分の発言は原文のままログ表示（翻訳不要）
   addMsg({ id: S.myId, name: S.myName, lang: lcLang(S.speakLang), original: text, translated: text, isMe: true });
+
+  // サーバーへ送信（サーバーが翻訳して他参加者へ配信）
   wsSend({ type: 'speech', text });
-}
-
-// ════════════════════════════════════════════════════════
-//  Receive speech from server → translate → TTS
-// ════════════════════════════════════════════════════════
-async function handleSpeech(d) {
-  if (!d.text || typeof d.text !== 'string') return;
-  const text    = d.text.slice(0, 500);
-  const srcLang = lcLang(d.lang);
-
-  let translated = text;
-  if (srcLang !== S.receiveLang) {
-    translated = await translate(text, srcLang, S.receiveLang);
-  }
-
-  addMsg({ id: d.clientId, name: d.name, lang: d.lang, original: text, translated, isMe: false });
-
-  if (S.ttsEnabled && translated.trim()) {
-    speak(translated, S.receiveLang);
-  }
-}
-
-// ════════════════════════════════════════════════════════
-//  Translation (MyMemory)
-// ════════════════════════════════════════════════════════
-// ── [修正5] AbortSignal.timeout → AbortController+setTimeout
-//    (iOS 16以下の Safari 対応)
-async function translate(text, from, to) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
-  try {
-    const res = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`,
-      { signal: ctrl.signal }
-    );
-    clearTimeout(timer);
-    if (!res.ok) return text;
-    const json = await res.json();
-    const t = json?.responseData?.translatedText;
-    if (!t || typeof t !== 'string'
-           || t.startsWith('MYMEMORY WARNING')
-           || t.includes('PLEASE SELECT')
-           || t.includes('INVALID')) {
-      return text;
-    }
-    return t;
-  } catch {
-    clearTimeout(timer);
-    return text;
-  }
 }
 
 // ════════════════════════════════════════════════════════
@@ -946,14 +738,11 @@ function speak(text, lang) {
   speechSynthesis.cancel();
   setTimeout(() => {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang   = lang;
-    u.rate   = 1.0;
-    u.volume = 1.0;
+    u.lang = lang; u.rate = 1.0; u.volume = 1.0;
     speechSynthesis.speak(u);
     const keepAlive = setInterval(() => {
       if (!speechSynthesis.speaking) { clearInterval(keepAlive); return; }
-      speechSynthesis.pause();
-      speechSynthesis.resume();
+      speechSynthesis.pause(); speechSynthesis.resume();
     }, 10000);
     u.onend  = () => clearInterval(keepAlive);
     u.onerror = () => clearInterval(keepAlive);
@@ -973,31 +762,18 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
   document.getElementById('msg-count').textContent = S.msgCount + ' 件';
 
   const now = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-  const idx = S.participantOrder.indexOf(id);
-  const col = pCol(idx >= 0 ? idx : 0);
+  const idx  = S.participantOrder.indexOf(id);
+  const col  = pCol(idx >= 0 ? idx : 0);
 
   const card = document.createElement('div');
   card.className = 'msg';
 
   const meta = document.createElement('div');
   meta.className = 'msg-meta';
-
-  const nm = document.createElement('span');
-  nm.className = 'msg-name';
-  nm.style.color = col;
-  nm.textContent = name;
-
-  const lg = document.createElement('span');
-  lg.className = 'msg-lang';
-  lg.textContent = (lang || '').split('-')[0];
-
-  const tm = document.createElement('span');
-  tm.className = 'msg-time';
-  tm.textContent = now;
-
-  meta.appendChild(nm);
-  meta.appendChild(lg);
-  meta.appendChild(tm);
+  const nm = document.createElement('span'); nm.className = 'msg-name'; nm.style.color = col; nm.textContent = name;
+  const lg = document.createElement('span'); lg.className = 'msg-lang'; lg.textContent = (lang || '').split('-')[0];
+  const tm = document.createElement('span'); tm.className = 'msg-time'; tm.textContent = now;
+  meta.appendChild(nm); meta.appendChild(lg); meta.appendChild(tm);
   card.appendChild(meta);
 
   if (!isMe && original !== translated) {
@@ -1020,9 +796,8 @@ function addMsg({ id, name, lang, original, translated, isMe }) {
 //  Leave
 // ════════════════════════════════════════════════════════
 async function leaveRoom() {
-  stopRec();
-  stopPing();
-  wsSend({ type: 'leave', clientId: S.myId });
+  stopRec(); stopPing();
+  wsSend({ type: 'leave' });
   await new Promise(r => setTimeout(r, 100));
   S.roomId = null;
   if (S.ws) { S.ws.onclose = null; S.ws.close(); S.ws = null; }

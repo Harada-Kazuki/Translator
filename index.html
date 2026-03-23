@@ -178,7 +178,7 @@ input:focus, select:focus { border-color: var(--accent); }
     <div class="setup-wrap">
       <h1>会議に参加する</h1>
       <p class="setup-desc">
-        名前を入力して母語を選んでください。ルームを作成するか、IDやQRコードで相手のルームに参加することができます。
+        母語を選ぶだけでOK。相手が何語で話しても自動で翻訳します。
       </p>
 
       <div class="field-row">
@@ -187,7 +187,7 @@ input:focus, select:focus { border-color: var(--accent); }
           <input type="text" id="input-name" placeholder="例：原田 一希" maxlength="20" autocomplete="nickname">
         </div>
         <div class="field">
-          <label>母語</label>
+          <label>母語（話す＆聞く言語）</label>
           <div class="lang-select-wrap">
             <select id="input-lang">
               <option value="ja">🇯🇵 日本語</option>
@@ -222,7 +222,7 @@ input:focus, select:focus { border-color: var(--accent); }
               <option value="fi">🇫🇮 Suomi</option>
             </select>
           </div>
-          <div class="lang-hint">話す言語を選択してください。相手の言語はAIが翻訳します。</div>
+          <div class="lang-hint">この言語で話し、この言語に翻訳して受け取ります</div>
         </div>
       </div>
 
@@ -271,8 +271,8 @@ input:focus, select:focus { border-color: var(--accent); }
         </div>
         <div class="mic-section">
           <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
-            <span id="mic-icon">[Button]</span>
-            <span id="mic-label">Mic ON</span>
+            <span id="mic-icon">🎙</span>
+            <span id="mic-label">マイクをオンにする</span>
           </button>
           <div class="vol-bar"><div class="vol-fill" id="vol"></div></div>
           <div class="interim" id="interim"></div>
@@ -714,6 +714,22 @@ function startRec() {
     renderParticipants();
   };
 
+  // 結合バッファ: 直前送信から1秒以内のisFinalは結合してまとめて送信
+  // 句読点が来た瞬間は即送信してリアルタイム感を保つ
+  const PUNCT_RE  = /[。．！？!?.;\n]/;
+  const MERGE_MS  = 1000;
+  let mergeBuffer = '';
+  let mergeTimer  = null;
+
+  function flushMerge() {
+    clearTimeout(mergeTimer);
+    mergeTimer = null;
+    const text = mergeBuffer.trim();
+    mergeBuffer = '';
+    if (text) sendSpeech(text);
+  }
+  S._flushMerge = flushMerge;
+
   r.onresult = e => {
     let interim = '', final = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -723,8 +739,16 @@ function startRec() {
     document.getElementById('interim').textContent = interim;
     animVol();
     if (final.trim()) {
+      mergeBuffer += final.trim();
       document.getElementById('interim').textContent = '';
-      sendSpeech(final.trim());
+      if (PUNCT_RE.test(mergeBuffer)) {
+        // 句読点あり → 即送信
+        flushMerge();
+      } else {
+        // 句読点なし → 1秒待って結合送信
+        clearTimeout(mergeTimer);
+        mergeTimer = setTimeout(flushMerge, MERGE_MS);
+      }
     }
   };
 
@@ -747,12 +771,14 @@ function startRec() {
 
 function stopRec() {
   S.recording = false;
+  // 停止時にバッファに残っているテキストを送信
+  if (S._flushMerge) { S._flushMerge(); S._flushMerge = null; }
   if (S.rec) { S.rec._stop?.(); try { S.rec.abort(); } catch {} S.rec = null; }
   document.getElementById('mic-btn')?.classList.remove('recording');
   const iconEl  = document.getElementById('mic-icon');
   const labelEl = document.getElementById('mic-label');
-  if (iconEl)  iconEl.textContent  = '[Button]';
-  if (labelEl) labelEl.textContent = 'Mic ON';
+  if (iconEl)  iconEl.textContent  = '🎤';
+  if (labelEl) labelEl.textContent = 'マイクをオンにする';
   const interimEl = document.getElementById('interim');
   if (interimEl) interimEl.textContent = '';
   const volEl = document.getElementById('vol');
@@ -777,14 +803,27 @@ function animVol() {
 // ════════════════════════════════════════════════════════
 function sendSpeech(text) {
   const now = Date.now();
+
+  // 完全一致の重複は弾く
   if (text === S.lastSentText && now - S.lastSentTime < 1200) return;
+
+  // Web Speech APIが前の認識結果を含めて上書きしてくる問題への対処:
+  // 送信済みテキストで始まる文章は「差分だけ」送る
+  // 例: 送信済み「こんにちは」→ 新着「こんにちはこちらはかずきです」→ 差分「こちらはかずきです」を送信
+  let sendText = text;
+  if (S.lastSentText && text.startsWith(S.lastSentText) && now - S.lastSentTime < 10000) {
+    const diff = text.slice(S.lastSentText.length).trim();
+    if (!diff) return; // 差分なし → 無視
+    sendText = diff;
+  }
+
   S.lastSentText = text; S.lastSentTime = now;
 
   // 自分の発言は原文のままログ表示
-  addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: text, translated: text, isMe: true });
+  addMsg({ id: S.myId, name: S.myName, lang: S.lang, original: sendText, translated: sendText, isMe: true });
 
   // サーバーへ送信（各受信者の母語に翻訳して配信）
-  wsSend({ type: 'speech', text });
+  wsSend({ type: 'speech', text: sendText });
 }
 
 // ════════════════════════════════════════════════════════

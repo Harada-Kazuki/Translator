@@ -193,13 +193,37 @@ async function translateWithGemini(text, fromLang, toLang) {
 }
 
 /**
+ * 翻訳結果キャッシュ（重複API呼び出し防止）
+ * 直近200件を保持。同じ文章は何度話してもAPIを1回しか叩かない
+ */
+const translationCache = new Map();
+const CACHE_MAX = 200;
+
+function cacheGet(text, fromLang, toLang) {
+  return translationCache.get(`${fromLang}:${toLang}:${text}`);
+}
+function cacheSet(text, fromLang, toLang, value) {
+  if (translationCache.size >= CACHE_MAX) {
+    translationCache.delete(translationCache.keys().next().value);
+  }
+  translationCache.set(`${fromLang}:${toLang}:${text}`, value);
+}
+
+/**
  * speech受信時のメイン処理
  * - 送信者の母語 → 各受信者の母語 に翻訳
  * - 同じ翻訳先言語はキャッシュして1回だけAPIを叩く
+ * - 短すぎるテキスト（2文字以下）はスキップ
  */
 async function handleSpeech(room, senderId, text) {
   const sender = room.get(senderId);
   if (!sender) return;
+
+  // 相槌など短すぎるものはスキップ
+  if ([...text].length <= 2) {
+    console.log(`[speech] too short, skip: "${text}"`);
+    return;
+  }
 
   const fromLang = sender.lang;
   console.log(`[speech] from=${sender.name}(${fromLang}) text="${text}" roomSize=${room.size}`);
@@ -216,10 +240,18 @@ async function handleSpeech(room, senderId, text) {
     return;
   }
 
-  // 言語ごとに1回だけ翻訳（キャッシュ）
+  // 言語ごとに翻訳（キャッシュがあればAPIをスキップ）
   const cache = {};
   await Promise.all([...targetLangs].map(async (toLang) => {
-    cache[toLang] = await translateWithGemini(text, fromLang, toLang);
+    const hit = cacheGet(text, fromLang, toLang);
+    if (hit !== undefined) {
+      console.log(`[cache] hit ${fromLang}→${toLang}: "${text}"`);
+      cache[toLang] = hit;
+      return;
+    }
+    const translated = await translateWithGemini(text, fromLang, toLang);
+    cacheSet(text, fromLang, toLang, translated);
+    cache[toLang] = translated;
   }));
 
   // 各クライアントに個別送信

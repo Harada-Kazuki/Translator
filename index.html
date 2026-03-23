@@ -176,9 +176,9 @@ input:focus, select:focus { border-color: var(--accent); }
   <!-- SETUP -->
   <div class="screen active" id="screen-setup">
     <div class="setup-wrap">
-      <h1>国際会議に参加する</h1>
+      <h1>会議に参加する</h1>
       <p class="setup-desc">
-        母語を選んでルームを作成するか、ルームコードもしくはQRコードで相手のルームに参加してください
+        母語を選ぶだけでOK。相手が何語で話しても自動で翻訳します。
       </p>
 
       <div class="field-row">
@@ -187,7 +187,7 @@ input:focus, select:focus { border-color: var(--accent); }
           <input type="text" id="input-name" placeholder="例：原田 一希" maxlength="20" autocomplete="nickname">
         </div>
         <div class="field">
-          <label>母語</label>
+          <label>母語（話す＆聞く言語）</label>
           <div class="lang-select-wrap">
             <select id="input-lang">
               <option value="ja">🇯🇵 日本語</option>
@@ -222,7 +222,7 @@ input:focus, select:focus { border-color: var(--accent); }
               <option value="fi">🇫🇮 Suomi</option>
             </select>
           </div>
-          <div class="lang-hint">この言語で話します。相手の言語はAIが翻訳してくれます。</div>
+          <div class="lang-hint">この言語で話し、この言語に翻訳して受け取ります</div>
         </div>
       </div>
 
@@ -714,17 +714,46 @@ function startRec() {
     renderParticipants();
   };
 
+  // バッファリング: isFinal が細かく来すぎるのを結合して送信回数を削減
+  // 句読点 or 20文字以上 or 1.2秒無音 でフラッシュ
+  let finalBuffer = '';
+  let flushTimer = null;
+  const FLUSH_CHARS = 20;
+  const FLUSH_MS    = 1200;
+  // 各言語の区切り文字パターン
+  const PUNCT_RE = /[。．！？!?，、,.;；\n]/;
+
+  function flushBuffer() {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+    const text = finalBuffer.trim();
+    finalBuffer = '';
+    if (text) {
+      document.getElementById('interim').textContent = '';
+      sendSpeech(text);
+    }
+  }
+  S._flushBuffer = flushBuffer;
+
   r.onresult = e => {
     let interim = '', final = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript;
       e.results[i].isFinal ? (final += t) : (interim += t);
     }
-    document.getElementById('interim').textContent = interim;
+    document.getElementById('interim').textContent = interim || finalBuffer;
     animVol();
+
     if (final.trim()) {
-      document.getElementById('interim').textContent = '';
-      sendSpeech(final.trim());
+      finalBuffer += final;
+      // 句読点あり or 一定文字数超え → 即フラッシュ
+      if (PUNCT_RE.test(finalBuffer) || [...finalBuffer].length >= FLUSH_CHARS) {
+        flushBuffer();
+      } else {
+        // 無音タイマーをリセット（1.2秒後にフラッシュ）
+        clearTimeout(flushTimer);
+        flushTimer = setTimeout(flushBuffer, FLUSH_MS);
+      }
     }
   };
 
@@ -747,6 +776,8 @@ function startRec() {
 
 function stopRec() {
   S.recording = false;
+  // マイク停止時にバッファに残っているテキストを送信
+  if (S._flushBuffer) { S._flushBuffer(); S._flushBuffer = null; }
   if (S.rec) { S.rec._stop?.(); try { S.rec.abort(); } catch {} S.rec = null; }
   document.getElementById('mic-btn')?.classList.remove('recording');
   const iconEl  = document.getElementById('mic-icon');
